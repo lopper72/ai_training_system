@@ -1,0 +1,47 @@
+{
+  "_comment": "Đây là cấu hình SOURCE DATABASE (database gốc) để trích xuất dữ liệu từ scm_sal_main và scm_sal_data. Dữ liệu đã xử lý sẽ được lưu vào data/processed/",
+  
+  "source_database": {
+    "type": "postgresql",
+    "host": "localhost",
+    "port": 5432,
+    "database": "v57udemo2011",
+    "username": "postgres",
+    "password": "123",
+    "schema": "public",
+    "pool_size": 10,
+    "max_overflow": 20,
+    "pool_timeout": 30,
+    "echo": false
+  },
+  
+  "tables": {
+    "scm_sal_main": {
+      "name": "scm_sal_main",
+      "description": "Bảng chính đơn hàng bán",
+      "primary_key": "uniquenum_pri"
+    },
+    "scm_sal_data": {
+      "name": "scm_sal_data",
+      "description": "Bảng chi tiết đơn hàng bán",
+      "primary_key": "uniquenum_uniq",
+      "foreign_key": "uniquenum_pri"
+    }
+  },
+  
+  "extraction_settings": {
+    "batch_size": 10000,
+    "max_workers": 4,
+    "chunk_size": 5000,
+    "date_format": "YYYY-MM-DD",
+    "timezone": "Asia/Ho_Chi_Minh"
+  },
+  
+  "filters": {
+    "default": {
+      "tag_void_yn": "n",
+      "companyfn": "${COOKCFNUNIQUE}"
+    },
+    "transaction_types": ["sal_soe", "sal_soc", "sal_inv", "sal_quo", "stk_do", "stk_doc"]
+  }
+}

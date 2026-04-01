@@ -1,0 +1,36 @@
+# AI Training System Requirements
+
+# Core
+pandas>=1.5.0
+numpy>=1.23.0
+python-dateutil>=2.8.0
+
+# Database
+sqlalchemy>=1.4.0
+psycopg2-binary>=2.9.0
+
+# ML
+scikit-learn>=1.1.0
+scipy>=1.9.0
+
+# Scheduling
+schedule>=1.1.0
+
+# Data formats
+pyarrow>=9.0.0
+openpyxl>=3.0.0
+
+# Logging
+colorlog>=6.7.0
+
+# Optional: Deep Learning (uncomment if needed)
+# torch>=1.12.0
+# tensorflow>=2.10.0
+
+# Optional: Advanced ML (uncomment if needed)
+# xgboost>=1.6.0
+# lightgbm>=3.3.0
+# prophet>=1.1.0
+
+# AI Chat - OpenAI
+openai>=1.0.0
