@@ -1,5 +1,5 @@
 {
-  "_comment": "Đây là cấu hình SOURCE DATABASE (database gốc) để trích xuất dữ liệu từ scm_sal_main và scm_sal_data. Dữ liệu đã xử lý sẽ được lưu vào data/processed/",
+  "_comment": "This is the SOURCE DATABASE configuration to extract data from scm_sal_main and scm_sal_data. Processed data will be saved to data/processed/",
   
   "source_database": {
     "type": "postgresql",
@@ -18,12 +18,12 @@
   "tables": {
     "scm_sal_main": {
       "name": "scm_sal_main",
-      "description": "Bảng chính đơn hàng bán",
+      "description": "Main sales order table",
       "primary_key": "uniquenum_pri"
     },
     "scm_sal_data": {
       "name": "scm_sal_data",
-      "description": "Bảng chi tiết đơn hàng bán",
+      "description": "Sales order detail table",
       "primary_key": "uniquenum_uniq",
       "foreign_key": "uniquenum_pri"
     }

@@ -1,6 +1,6 @@
 """
 Churn Predictor Module
-Module dự đoán khả năng rời bỏ của khách hàng
+Module for predicting customer churn probability
 """
 
 import logging
@@ -13,14 +13,14 @@ logger = logging.getLogger(__name__)
 
 
 class ChurnPredictor:
-    """Class dự đoán khách hàng rời bỏ"""
+    """Class for predicting customer churn"""
     
     def __init__(self, model_dir: str = "data/models"):
         """
-        Khởi tạo ChurnPredictor
+        Initialize ChurnPredictor
         
         Args:
-            model_dir: Thư mục lưu models
+            model_dir: Directory to store models
         """
         self.model_trainer = ModelTrainer(model_dir)
         self.feature_columns = [
@@ -33,42 +33,42 @@ class ChurnPredictor:
     
     def prepare_churn_data(self, df: pd.DataFrame, churn_threshold_days: int = 90) -> pd.DataFrame:
         """
-        Chuẩn bị dữ liệu cho churn prediction
+        Prepare data for churn prediction
         
         Args:
-            df: DataFrame dữ liệu khách hàng
-            churn_threshold_days: Số ngày để xác định churn
+            df: Customer data DataFrame
+            churn_threshold_days: Number of days to define churn
             
         Returns:
-            DataFrame đã chuẩn bị
+            Prepared DataFrame
         """
         try:
-            logger.info("Chuẩn bị dữ liệu churn prediction")
+            logger.info("Preparing churn prediction data")
             
             df_prep = df.copy()
             
-            # Tạo target variable
+            # Create target variable
             if 'days_since_last_purchase' in df_prep.columns:
                 df_prep['is_churned'] = (df_prep['days_since_last_purchase'] > churn_threshold_days).astype(int)
             
-            # Xử lý missing values
+            # Handle missing values
             for col in self.feature_columns:
                 if col in df_prep.columns:
                     df_prep[col] = df_prep[col].fillna(0)
             
-            # Tạo additional features
+            # Create additional features
             if 'total_spent' in df_prep.columns and 'total_purchases' in df_prep.columns:
                 df_prep['avg_order_value'] = df_prep['total_spent'] / df_prep['total_purchases'].replace(0, 1)
             
             if 'total_purchases' in df_prep.columns and 'customer_lifetime_days' in df_prep.columns:
                 df_prep['purchase_frequency'] = df_prep['total_purchases'] / df_prep['customer_lifetime_days'].replace(0, 1)
             
-            logger.info(f"Chuẩn bị xong {len(df_prep)} samples")
+            logger.info(f"Prepared {len(df_prep)} samples")
             
             return df_prep
             
         except Exception as e:
-            logger.error(f"Lỗi chuẩn bị dữ liệu churn: {str(e)}")
+            logger.error(f"Error preparing churn data: {str(e)}")
             raise
     
     def train(
@@ -78,20 +78,20 @@ class ChurnPredictor:
         hyperparameter_tuning: bool = False
     ) -> Dict:
         """
-        Training churn prediction model
+        Train churn prediction model
         
         Args:
-            df: DataFrame dữ liệu
-            algorithm: Thuật toán
-            hyperparameter_tuning: Có tune hyperparameters không
+            df: Data DataFrame
+            algorithm: Algorithm to use
+            hyperparameter_tuning: Whether to tune hyperparameters
             
         Returns:
-            Dict kết quả training
+            Dict with training results
         """
         try:
             logger.info("Training churn prediction model")
             
-            # Chuẩn bị features
+            # Prepare features
             available_features = [col for col in self.feature_columns if col in df.columns]
             
             X, y = self.model_trainer.prepare_features(
@@ -102,7 +102,7 @@ class ChurnPredictor:
             )
             
             if y is None:
-                raise ValueError(f"Target column '{self.target_column}' không tồn tại")
+                raise ValueError(f"Target column '{self.target_column}' does not exist")
             
             # Training
             result = self.model_trainer.train_classifier(
@@ -112,34 +112,34 @@ class ChurnPredictor:
                 hyperparameter_tuning=hyperparameter_tuning
             )
             
-            # Thêm thông tin features
+            # Add feature information
             result['feature_columns'] = available_features
             result['churn_rate'] = y.mean()
             
-            logger.info(f"Hoàn thành training churn predictor: F1={result['metrics']['f1_score']:.4f}")
+            logger.info(f"Completed training churn predictor: F1={result['metrics']['f1_score']:.4f}")
             
             return result
             
         except Exception as e:
-            logger.error(f"Lỗi training churn predictor: {str(e)}")
+            logger.error(f"Error training churn predictor: {str(e)}")
             raise
     
     def predict(self, df: pd.DataFrame) -> pd.DataFrame:
         """
-        Dự đoán churn cho khách hàng
+        Predict churn for customers
         
         Args:
-            df: DataFrame dữ liệu khách hàng
+            df: Customer data DataFrame
             
         Returns:
-            DataFrame với predictions
+            DataFrame with predictions
         """
         try:
-            logger.info("Dự đoán churn")
+            logger.info("Predicting churn")
             
             df_pred = df.copy()
             
-            # Chuẩn bị features
+            # Prepare features
             available_features = [col for col in self.feature_columns if col in df_pred.columns]
             
             X, _ = self.model_trainer.prepare_features(
@@ -158,23 +158,23 @@ class ChurnPredictor:
                 labels=['Low', 'High']
             )
             
-            logger.info(f"Dự đoán xong {len(df_pred)} customers")
+            logger.info(f"Predicted {len(df_pred)} customers")
             
             return df_pred
             
         except Exception as e:
-            logger.error(f"Lỗi dự đoán churn: {str(e)}")
+            logger.error(f"Error predicting churn: {str(e)}")
             raise
     
     def get_churn_insights(self, df: pd.DataFrame) -> Dict:
         """
-        Lấy insights về churn
+        Get insights about churn
         
         Args:
-            df: DataFrame với predictions
+            df: DataFrame with predictions
             
         Returns:
-            Dict insights
+            Dict with insights
         """
         try:
             insights = {
@@ -197,5 +197,5 @@ class ChurnPredictor:
             return insights
             
         except Exception as e:
-            logger.error(f"Lỗi lấy churn insights: {str(e)}")
+            logger.error(f"Error getting churn insights: {str(e)}")
             raise

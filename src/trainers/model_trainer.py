@@ -1,6 +1,6 @@
 """
 Model Trainer Module
-Module chính để training ML models
+Main module for training ML models
 """
 
 import json
@@ -28,14 +28,14 @@ logger = logging.getLogger(__name__)
 
 
 class ModelTrainer:
-    """Class chính để training ML models"""
+    """Main class for training ML models"""
     
     def __init__(self, model_dir: str = "data/models"):
         """
-        Khởi tạo ModelTrainer
+        Initialize ModelTrainer
         
         Args:
-            model_dir: Thư mục lưu models
+            model_dir: Directory to store models
         """
         self.model_dir = Path(model_dir)
         self.model_dir.mkdir(parents=True, exist_ok=True)
@@ -51,23 +51,23 @@ class ModelTrainer:
         categorical_columns: Optional[List[str]] = None
     ) -> Tuple[np.ndarray, Optional[np.ndarray]]:
         """
-        Chuẩn bị features cho training
+        Prepare features for training
         
         Args:
-            df: DataFrame dữ liệu
-            feature_columns: Danh sách cột features
-            target_column: Tên cột target (nếu có)
-            categorical_columns: Danh sách cột categorical
+            df: Data DataFrame
+            feature_columns: List of feature columns
+            target_column: Target column name (if any)
+            categorical_columns: List of categorical columns
             
         Returns:
-            Tuple (X, y) hoặc (X, None)
+            Tuple (X, y) or (X, None)
         """
         try:
-            logger.info("Chuẩn bị features cho training")
+            logger.info("Preparing features for training")
             
             df_prep = df.copy()
             
-            # Xử lý categorical columns
+            # Handle categorical columns
             if categorical_columns:
                 for col in categorical_columns:
                     if col in df_prep.columns:
@@ -77,27 +77,27 @@ class ModelTrainer:
                         else:
                             df_prep[col] = self.label_encoders[col].transform(df_prep[col].astype(str))
             
-            # Lấy features
+            # Get features
             available_features = [col for col in feature_columns if col in df_prep.columns]
             X = df_prep[available_features].values
             
-            # Xử lý missing values
+            # Handle missing values
             X = np.nan_to_num(X, nan=0.0, posinf=0.0, neginf=0.0)
             
             # Scale features
             X = self.scaler.fit_transform(X)
             
-            # Lấy target nếu có
+            # Get target if available
             y = None
             if target_column and target_column in df_prep.columns:
                 y = df_prep[target_column].values
             
-            logger.info(f"Chuẩn bị xong {X.shape[0]} samples, {X.shape[1]} features")
+            logger.info(f"Prepared {X.shape[0]} samples, {X.shape[1]} features")
             
             return X, y
             
         except Exception as e:
-            logger.error(f"Lỗi chuẩn bị features: {str(e)}")
+            logger.error(f"Error preparing features: {str(e)}")
             raise
     
     def train_classifier(
@@ -110,28 +110,28 @@ class ModelTrainer:
         hyperparameter_tuning: bool = False
     ) -> Dict:
         """
-        Training classification model
+        Train classification model
         
         Args:
             X: Features
             y: Labels
-            model_name: Tên model
-            algorithm: Thuật toán (random_forest, logistic_regression)
-            test_size: Tỷ lệ test set
-            hyperparameter_tuning: Có tune hyperparameters không
+            model_name: Model name
+            algorithm: Algorithm (random_forest, logistic_regression)
+            test_size: Test set ratio
+            hyperparameter_tuning: Whether to tune hyperparameters
             
         Returns:
-            Dict kết quả training
+            Dict with training results
         """
         try:
-            logger.info(f"Training classifier: {model_name} với {algorithm}")
+            logger.info(f"Training classifier: {model_name} with {algorithm}")
             
             # Split data
             X_train, X_test, y_train, y_test = train_test_split(
                 X, y, test_size=test_size, random_state=42, stratify=y
             )
             
-            # Chọn algorithm
+            # Select algorithm
             if algorithm == "random_forest":
                 model = RandomForestClassifier(n_estimators=100, random_state=42, n_jobs=-1)
                 if hyperparameter_tuning:
@@ -144,7 +144,7 @@ class ModelTrainer:
             elif algorithm == "logistic_regression":
                 model = LogisticRegression(random_state=42, max_iter=1000)
             else:
-                raise ValueError(f"Algorithm không hỗ trợ: {algorithm}")
+                raise ValueError(f"Algorithm not supported: {algorithm}")
             
             # Training
             model.fit(X_train, y_train)
@@ -165,7 +165,7 @@ class ModelTrainer:
             metrics['cv_mean'] = cv_scores.mean()
             metrics['cv_std'] = cv_scores.std()
             
-            # Lưu model
+            # Save model
             self.models[model_name] = model
             self._save_model(model, model_name)
             
@@ -177,12 +177,12 @@ class ModelTrainer:
                 'training_date': datetime.now().isoformat()
             }
             
-            logger.info(f"Hoàn thành training {model_name}: F1={metrics['f1_score']:.4f}")
+            logger.info(f"Completed training {model_name}: F1={metrics['f1_score']:.4f}")
             
             return result
             
         except Exception as e:
-            logger.error(f"Lỗi training classifier: {str(e)}")
+            logger.error(f"Error training classifier: {str(e)}")
             raise
     
     def train_regressor(
@@ -194,33 +194,33 @@ class ModelTrainer:
         test_size: float = 0.2
     ) -> Dict:
         """
-        Training regression model
+        Train regression model
         
         Args:
             X: Features
             y: Target values
-            model_name: Tên model
-            algorithm: Thuật toán
-            test_size: Tỷ lệ test set
+            model_name: Model name
+            algorithm: Algorithm
+            test_size: Test set ratio
             
         Returns:
-            Dict kết quả training
+            Dict with training results
         """
         try:
-            logger.info(f"Training regressor: {model_name} với {algorithm}")
+            logger.info(f"Training regressor: {model_name} with {algorithm}")
             
             # Split data
             X_train, X_test, y_train, y_test = train_test_split(
                 X, y, test_size=test_size, random_state=42
             )
             
-            # Chọn algorithm
+            # Select algorithm
             if algorithm == "random_forest":
                 model = RandomForestRegressor(n_estimators=100, random_state=42, n_jobs=-1)
             elif algorithm == "linear_regression":
                 model = LinearRegression()
             else:
-                raise ValueError(f"Algorithm không hỗ trợ: {algorithm}")
+                raise ValueError(f"Algorithm not supported: {algorithm}")
             
             # Training
             model.fit(X_train, y_train)
@@ -241,7 +241,7 @@ class ModelTrainer:
             metrics['cv_mean'] = cv_scores.mean()
             metrics['cv_std'] = cv_scores.std()
             
-            # Lưu model
+            # Save model
             self.models[model_name] = model
             self._save_model(model, model_name)
             
@@ -253,12 +253,12 @@ class ModelTrainer:
                 'training_date': datetime.now().isoformat()
             }
             
-            logger.info(f"Hoàn thành training {model_name}: R2={metrics['r2']:.4f}")
+            logger.info(f"Completed training {model_name}: R2={metrics['r2']:.4f}")
             
             return result
             
         except Exception as e:
-            logger.error(f"Lỗi training regressor: {str(e)}")
+            logger.error(f"Error training regressor: {str(e)}")
             raise
     
     def train_clustering(
@@ -268,18 +268,18 @@ class ModelTrainer:
         n_clusters: int = 5
     ) -> Dict:
         """
-        Training clustering model
+        Train clustering model
         
         Args:
             X: Features
-            model_name: Tên model
-            n_clusters: Số clusters
+            model_name: Model name
+            n_clusters: Number of clusters
             
         Returns:
-            Dict kết quả training
+            Dict with training results
         """
         try:
-            logger.info(f"Training clustering: {model_name} với {n_clusters} clusters")
+            logger.info(f"Training clustering: {model_name} with {n_clusters} clusters")
             
             model = KMeans(n_clusters=n_clusters, random_state=42, n_init=10)
             
@@ -293,7 +293,7 @@ class ModelTrainer:
                 'n_samples': X.shape[0]
             }
             
-            # Lưu model
+            # Save model
             self.models[model_name] = model
             self._save_model(model, model_name)
             
@@ -305,40 +305,40 @@ class ModelTrainer:
                 'training_date': datetime.now().isoformat()
             }
             
-            logger.info(f"Hoàn thành training {model_name}: {n_clusters} clusters")
+            logger.info(f"Completed training {model_name}: {n_clusters} clusters")
             
             return result
             
         except Exception as e:
-            logger.error(f"Lỗi training clustering: {str(e)}")
+            logger.error(f"Error training clustering: {str(e)}")
             raise
     
     def _save_model(self, model: Any, model_name: str):
-        """Lưu model xuống disk"""
+        """Save model to disk"""
         try:
             model_path = self.model_dir / f"{model_name}.pkl"
             with open(model_path, 'wb') as f:
                 pickle.dump(model, f)
-            logger.info(f"Đã lưu model: {model_path}")
+            logger.info(f"Saved model: {model_path}")
         except Exception as e:
-            logger.error(f"Lỗi lưu model: {str(e)}")
+            logger.error(f"Error saving model: {str(e)}")
             raise
     
     def load_model(self, model_name: str) -> Any:
-        """Đọc model từ disk"""
+        """Load model from disk"""
         try:
             model_path = self.model_dir / f"{model_name}.pkl"
             with open(model_path, 'rb') as f:
                 model = pickle.load(f)
             self.models[model_name] = model
-            logger.info(f"Đã đọc model: {model_path}")
+            logger.info(f"Loaded model: {model_path}")
             return model
         except Exception as e:
-            logger.error(f"Lỗi đọc model: {str(e)}")
+            logger.error(f"Error loading model: {str(e)}")
             raise
     
     def _get_feature_importance(self, model: Any, algorithm: str) -> Optional[Dict]:
-        """Lấy feature importance"""
+        """Get feature importance"""
         try:
             if algorithm in ['random_forest']:
                 if hasattr(model, 'feature_importances_'):
@@ -348,7 +348,7 @@ class ModelTrainer:
             return None
     
     def predict(self, model_name: str, X: np.ndarray) -> np.ndarray:
-        """Dự đoán với model đã train"""
+        """Predict with trained model"""
         try:
             if model_name not in self.models:
                 self.load_model(model_name)
@@ -357,5 +357,5 @@ class ModelTrainer:
             return model.predict(X)
             
         except Exception as e:
-            logger.error(f"Lỗi dự đoán: {str(e)}")
+            logger.error(f"Error predicting: {str(e)}")
             raise

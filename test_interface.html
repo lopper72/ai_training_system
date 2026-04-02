@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="vi">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -239,23 +239,23 @@
     <div class="container">
         <div class="header">
             <h1>🤖 AI Training System</h1>
-            <p>Hệ thống AI training để phân tích dữ liệu bán hàng</p>
+            <p>AI training system for sales data analysis</p>
         </div>
         
         <div class="content">
             <div class="info-box">
-                <strong>ℹ️ Hướng dẫn:</strong> Sử dụng các nút bên dưới để test các chức năng của hệ thống. 
-                Đảm bảo database đã được cấu hình đúng trong file <code>config/database.json</code>
+                <strong>ℹ️ Instructions:</strong> Use the buttons below to test system functions. 
+                Ensure the database is properly configured in <code>config/database.json</code>
             </div>
             
             <div class="section">
-                <h2>📊 Kiểm tra Database</h2>
+                <h2>📊 Database Testing</h2>
                 <div class="button-group">
                     <button class="btn-primary" onclick="testDatabase()">
                         🔍 Test Database Connection
                     </button>
                     <button class="btn-secondary" onclick="checkData()">
-                        📈 Kiểm tra dữ liệu
+                        📈 Check Data
                     </button>
                 </div>
             </div>
@@ -276,45 +276,45 @@
             </div>
             
             <div class="section">
-                <h2>🔧 Quản lý</h2>
+                <h2>🔧 Management</h2>
                 <div class="button-group">
                     <button class="btn-secondary" onclick="clearOutput()">
-                        🗑️ Xóa Output
+                        🗑️ Clear Output
                     </button>
                     <button class="btn-danger" onclick="stopProcess()">
-                        ⏹️ Dừng Process
+                        ⏹️ Stop Process
                     </button>
                 </div>
             </div>
             
             <div class="loading" id="loading">
                 <div class="spinner"></div>
-                <p>Đang xử lý...</p>
+                <p>Processing...</p>
             </div>
             
             <div class="section">
                 <h2>📝 Output</h2>
                 <div class="output-area" id="output">
-                    Hệ thống sẵn sàng. Nhấn các nút phía trên để bắt đầu test...
+                    System ready. Click the buttons above to start testing...
                 </div>
             </div>
             
             <div class="grid">
                 <div class="card">
-                    <h3>📊 Trạng thái hệ thống</h3>
+                    <h3>📊 System Status</h3>
                     <div style="display: flex; align-items: center;">
                         <span class="status-indicator status-ready"></span>
-                        <span>Sẵn sàng</span>
+                        <span>Ready</span>
                     </div>
                 </div>
                 
                 <div class="card">
-                    <h3>📈 Models đã train</h3>
+                    <h3>📈 Trained Models</h3>
                     <div class="metric" id="modelsCount">0</div>
                 </div>
                 
                 <div class="card">
-                    <h3>⏱️ Thời gian chạy</h3>
+                    <h3>⏱️ Runtime</h3>
                     <div class="metric" id="runtime">00:00</div>
                 </div>
             </div>
@@ -328,7 +328,7 @@
         
         function updateOutput(message, type = 'info') {
             const output = document.getElementById('output');
-            const timestamp = new Date().toLocaleTimeString('vi-VN');
+            const timestamp = new Date().toLocaleTimeString('en-US');
             const prefix = type === 'error' ? '❌' : type === 'success' ? '✅' : 'ℹ️';
             output.innerHTML += `[${timestamp}] ${prefix} ${message}\n`;
             output.scrollTop = output.scrollHeight;
@@ -360,7 +360,7 @@
         
         async function executeCommand(command) {
             showLoading();
-            updateOutput(`Đang thực thi: ${command}`);
+            updateOutput(`Executing: ${command}`);
             
             try {
                 const response = await fetch('/execute', {
@@ -380,10 +380,10 @@
                         document.getElementById('modelsCount').textContent = currentCount + 1;
                     }
                 } else {
-                    updateOutput(`Lỗi: ${result.error}`, 'error');
+                    updateOutput(`Error: ${result.error}`, 'error');
                 }
             } catch (error) {
-                updateOutput(`Lỗi kết nối: ${error.message}`, 'error');
+                updateOutput(`Connection error: ${error.message}`, 'error');
             } finally {
                 hideLoading();
             }
@@ -394,7 +394,7 @@
         }
         
         function checkData() {
-            executeCommand('python -c "from src.extractors.database_extractor import DatabaseExtractor; db = DatabaseExtractor(\'config/database.json\'); result = db.execute_query(\'SELECT COUNT(*) FROM scm_sal_main\'); print(f\'Tổng số records: {result[0][0]}\'); db.close()"');
+            executeCommand('python -c "from src.extractors.database_extractor import DatabaseExtractor; db = DatabaseExtractor(\'config/database.json\'); result = db.execute_query(\'SELECT COUNT(*) FROM scm_sal_main\'); print(f\'Total records: {result[0][0]}\'); db.close()"');
         }
         
         function trainChurn() {
@@ -410,22 +410,22 @@
         }
         
         function clearOutput() {
-            document.getElementById('output').innerHTML = 'Output đã được xóa...\n';
+            document.getElementById('output').innerHTML = 'Output cleared...\n';
         }
         
         function stopProcess() {
             if (processRunning) {
-                updateOutput('Đang dừng process...', 'info');
+                updateOutput('Stopping process...', 'info');
                 hideLoading();
-                updateOutput('Process đã dừng', 'success');
+                updateOutput('Process stopped', 'success');
             } else {
-                updateOutput('Không có process nào đang chạy', 'info');
+                updateOutput('No process is running', 'info');
             }
         }
         
-        // Khởi tạo
-        updateOutput('Hệ thống đã khởi động thành công!', 'success');
-        updateOutput('Sẵn sàng nhận lệnh...', 'info');
+        // Initialize
+        updateOutput('System started successfully!', 'success');
+        updateOutput('Ready to receive commands...', 'info');
     </script>
 </body>
 </html>

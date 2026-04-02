@@ -1,6 +1,6 @@
 """
 Sales Extractor Module
-Module chuyên biệt trích xuất dữ liệu bán hàng từ scm_sal_main và scm_sal_data
+Specialized module for extracting sales data from scm_sal_main and scm_sal_data
 """
 
 import json
@@ -14,25 +14,27 @@ logger = logging.getLogger(__name__)
 
 
 class SalesExtractor:
-    """Class trích xuất dữ liệu bán hàng"""
+    """Class for extracting sales data with company-based data isolation"""
     
-    def __init__(self, config_path: str = "config/database.json"):
+    def __init__(self, config_path: str = "config/database.json", companyfn: Optional[str] = None):
         """
-        Khởi tạo SalesExtractor
+        Initialize SalesExtractor
         
         Args:
-            config_path: Đường dẫn file cấu hình
+            config_path: Path to configuration file
+            companyfn: Company code for data isolation (unique per company)
         """
         self.db_extractor = DatabaseExtractor(config_path)
         self.mapping = self._load_mapping()
+        self.companyfn = companyfn
     
     def _load_mapping(self) -> Dict:
-        """Đọc file mapping"""
+        """Read mapping file"""
         try:
             with open("config/mapping.json", 'r', encoding='utf-8') as f:
                 return json.load(f)
         except FileNotFoundError:
-            logger.warning("Không tìm thấy file mapping.json")
+            logger.warning("Mapping file mapping.json not found")
             return {}
     
     def extract_sales_main(
@@ -44,24 +46,27 @@ class SalesExtractor:
         include_void: bool = False
     ) -> pd.DataFrame:
         """
-        Trích xuất dữ liệu từ bảng scm_sal_main
+        Extract data from scm_sal_main table with company-based data isolation
         
         Args:
-            companyfn: Mã công ty
-            date_from: Ngày bắt đầu (YYYY-MM-DD)
-            date_to: Ngày kết thúc (YYYY-MM-DD)
-            transaction_types: Loại giao dịch (sal_soe, sal_soc, sal_inv, etc.)
-            include_void: Có bao gồm giao dịch đã hủy không
+            companyfn: Company code (uses instance companyfn if not provided)
+            date_from: Start date (YYYY-MM-DD)
+            date_to: End date (YYYY-MM-DD)
+            transaction_types: Transaction types (sal_soe, sal_soc, sal_inv, etc.)
+            include_void: Include voided transactions
             
         Returns:
-            DataFrame chứa dữ liệu
+            DataFrame containing data filtered by companyfn
         """
         try:
-            # Xây dựng filters
+            # Use instance companyfn if not provided (for data isolation)
+            effective_companyfn = companyfn or self.companyfn
+            
+            # Build filters
             filters = {}
             
-            if companyfn:
-                filters['companyfn'] = companyfn
+            if effective_companyfn:
+                filters['companyfn'] = effective_companyfn
             
             if not include_void:
                 filters['tag_void_yn'] = 'n'
@@ -69,8 +74,8 @@ class SalesExtractor:
             if transaction_types:
                 filters['tag_table_usage'] = transaction_types
             
-            # Xây dựng query với date filter
-            # Chỉ lấy các cột cần thiết có tồn tại trong database
+            # Build query with date filter
+            # Only select columns that exist in database
             query = """
                 SELECT 
                     uniquenum_pri,
@@ -103,15 +108,15 @@ class SalesExtractor:
             
             params = {}
             
-            if companyfn:
+            if effective_companyfn:
                 query += " AND companyfn = :companyfn"
-                params['companyfn'] = companyfn
+                params['companyfn'] = effective_companyfn
             
-            # Tạm thời bỏ filter tag_void_yn để debug
+            # Temporarily remove tag_void_yn filter for debugging
             # if not include_void:
             #     query += " AND tag_void_yn = 'n'"
             
-            # Tạm thời bỏ filter transaction_types để debug
+            # Temporarily remove transaction_types filter for debugging
             # if transaction_types:
             #     placeholders = ", ".join([f":type_{i}" for i in range(len(transaction_types))])
             #     query += f" AND tag_table_usage IN ({placeholders})"
@@ -128,16 +133,16 @@ class SalesExtractor:
             
             query += " ORDER BY date_trans DESC"
             
-            logger.info(f"Trích xuất scm_sal_main với query: {query}")
+            logger.info(f"Extracting scm_sal_main with query: {query}")
             logger.info(f"Params: {params}")
             
             result = self.db_extractor.extract_data(query, params)
-            logger.info(f"Kết quả: {len(result)} records")
+            logger.info(f"Result: {len(result)} records")
             
             return result
             
         except Exception as e:
-            logger.error(f"Lỗi trích xuất scm_sal_main: {str(e)}")
+            logger.error(f"Error extracting scm_sal_main: {str(e)}")
             raise
     
     def extract_sales_data(
@@ -150,21 +155,21 @@ class SalesExtractor:
         include_void: bool = False
     ) -> pd.DataFrame:
         """
-        Trích xuất dữ liệu từ bảng scm_sal_data
+        Extract data from scm_sal_data table
         
         Args:
-            companyfn: Mã công ty
-            uniquenum_pri: ID đơn hàng cụ thể
-            date_from: Ngày bắt đầu
-            date_to: Ngày kết thúc
-            product_codes: Danh sách mã sản phẩm
-            include_void: Có bao gồm giao dịch đã hủy không
+            companyfn: Company code
+            uniquenum_pri: Specific order ID
+            date_from: Start date
+            date_to: End date
+            product_codes: List of product codes
+            include_void: Include voided transactions
             
         Returns:
-            DataFrame chứa dữ liệu
+            DataFrame containing data
         """
         try:
-            # Chỉ lấy các cột cần thiết có tồn tại trong database
+            # Only select columns that exist in database
             query = """
                 SELECT 
                     idcode,
@@ -245,12 +250,12 @@ class SalesExtractor:
             
             query += " ORDER BY date_trans DESC, row_item_num"
             
-            logger.info(f"Trích xuất scm_sal_data")
+            logger.info(f"Extracting scm_sal_data")
             
             return self.db_extractor.extract_data(query, params)
             
         except Exception as e:
-            logger.error(f"Lỗi trích xuất scm_sal_data: {str(e)}")
+            logger.error(f"Error extracting scm_sal_data: {str(e)}")
             raise
     
     def extract_sales_with_details(
@@ -261,16 +266,16 @@ class SalesExtractor:
         transaction_types: Optional[List[str]] = None
     ) -> pd.DataFrame:
         """
-        Trích xuất dữ liệu bán hàng đầy đủ (JOIN scm_sal_main và scm_sal_data)
+        Extract complete sales data (JOIN scm_sal_main and scm_sal_data)
         
         Args:
-            companyfn: Mã công ty
-            date_from: Ngày bắt đầu
-            date_to: Ngày kết thúc
-            transaction_types: Loại giao dịch
+            companyfn: Company code
+            date_from: Start date
+            date_to: End date
+            transaction_types: Transaction types
             
         Returns:
-            DataFrame chứa dữ liệu đầy đủ
+            DataFrame containing complete data
         """
         try:
             query = """
@@ -355,12 +360,12 @@ class SalesExtractor:
             
             query += " ORDER BY main.date_trans DESC, data.row_item_num"
             
-            logger.info("Trích xuất dữ liệu bán hàng đầy đủ với JOIN")
+            logger.info("Extracting complete sales data with JOIN")
             
             return self.db_extractor.extract_data(query, params)
             
         except Exception as e:
-            logger.error(f"Lỗi trích xuất dữ liệu bán hàng đầy đủ: {str(e)}")
+            logger.error(f"Error extracting complete sales data: {str(e)}")
             raise
     
     def extract_customer_analysis_data(
@@ -370,15 +375,15 @@ class SalesExtractor:
         date_to: Optional[str] = None
     ) -> pd.DataFrame:
         """
-        Trích xuất dữ liệu cho phân tích khách hàng
+        Extract data for customer analysis
         
         Args:
-            companyfn: Mã công ty
-            date_from: Ngày bắt đầu
-            date_to: Ngày kết thúc
+            companyfn: Company code
+            date_from: Start date
+            date_to: End date
             
         Returns:
-            DataFrame dữ liệu phân tích khách hàng
+            DataFrame with customer analysis data
         """
         try:
             query = """
@@ -428,12 +433,12 @@ class SalesExtractor:
             
             query += " ORDER BY main.date_trans DESC"
             
-            logger.info("Trích xuất dữ liệu phân tích khách hàng")
+            logger.info("Extracting customer analysis data")
             
             return self.db_extractor.extract_data(query, params)
             
         except Exception as e:
-            logger.error(f"Lỗi trích xuất dữ liệu phân tích khách hàng: {str(e)}")
+            logger.error(f"Error extracting customer analysis data: {str(e)}")
             raise
     
     def extract_customer_retention_data(
@@ -442,14 +447,14 @@ class SalesExtractor:
         lookback_days: Optional[int] = None
     ) -> pd.DataFrame:
         """
-        Trích xuất dữ liệu cho phân tích giữ chân khách hàng
+        Extract data for customer retention analysis
         
         Args:
-            companyfn: Mã công ty
-            lookback_days: Số ngày nhìn lại (None = không giới hạn)
+            companyfn: Company code
+            lookback_days: Number of days to look back (None = unlimited)
             
         Returns:
-            DataFrame dữ liệu giữ chân khách hàng
+            DataFrame with customer retention data
         """
         try:
             query = """
@@ -507,12 +512,12 @@ class SalesExtractor:
                 )
                 params['companyfn'] = companyfn
             
-            logger.info("Trích xuất dữ liệu phân tích giữ chân khách hàng")
+            logger.info("Extracting customer retention analysis data")
             
             return self.db_extractor.extract_data(query, params)
             
         except Exception as e:
-            logger.error(f"Lỗi trích xuất dữ liệu giữ chân khách hàng: {str(e)}")
+            logger.error(f"Error extracting customer retention data: {str(e)}")
             raise
     
     def extract_product_analysis_data(
@@ -522,15 +527,15 @@ class SalesExtractor:
         date_to: Optional[str] = None
     ) -> pd.DataFrame:
         """
-        Trích xuất dữ liệu cho phân tích sản phẩm
+        Extract data for product analysis
         
         Args:
-            companyfn: Mã công ty
-            date_from: Ngày bắt đầu
-            date_to: Ngày kết thúc
+            companyfn: Company code
+            date_from: Start date
+            date_to: End date
             
         Returns:
-            DataFrame dữ liệu phân tích sản phẩm
+            DataFrame with product analysis data
         """
         try:
             query = """
@@ -592,12 +597,12 @@ class SalesExtractor:
                 ORDER BY revenue DESC
             """
             
-            logger.info("Trích xuất dữ liệu phân tích sản phẩm")
+            logger.info("Extracting product analysis data")
             
             return self.db_extractor.extract_data(query, params)
             
         except Exception as e:
-            logger.error(f"Lỗi trích xuất dữ liệu phân tích sản phẩm: {str(e)}")
+            logger.error(f"Error extracting product analysis data: {str(e)}")
             raise
     
     def extract_sales_trend_data(
@@ -607,15 +612,15 @@ class SalesExtractor:
         date_to: Optional[str] = None
     ) -> pd.DataFrame:
         """
-        Trích xuất dữ liệu cho phân tích xu hướng bán hàng
+        Extract data for sales trend analysis
         
         Args:
-            companyfn: Mã công ty
-            date_from: Ngày bắt đầu
-            date_to: Ngày kết thúc
+            companyfn: Company code
+            date_from: Start date
+            date_to: End date
             
         Returns:
-            DataFrame dữ liệu xu hướng
+            DataFrame with trend data
         """
         try:
             query = """
@@ -670,16 +675,16 @@ class SalesExtractor:
                 ORDER BY date_trans DESC
             """
             
-            logger.info("Trích xuất dữ liệu xu hướng bán hàng")
+            logger.info("Extracting sales trend data")
             
             return self.db_extractor.extract_data(query, params)
             
         except Exception as e:
-            logger.error(f"Lỗi trích xuất dữ liệu xu hướng: {str(e)}")
+            logger.error(f"Error extracting trend data: {str(e)}")
             raise
     
     def close(self):
-        """Đóng kết nối"""
+        """Close connection"""
         self.db_extractor.close()
     
     def __enter__(self):

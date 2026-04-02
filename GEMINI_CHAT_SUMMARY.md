@@ -1,36 +1,36 @@
-# 🤖 AI Chat Interface - Tổng kết (OpenRouter Version)
+# 🤖 AI Chat Interface - Summary (OpenRouter Version)
 
-## ✅ Đã hoàn thành
+## ✅ Completed
 
-Hệ thống chat AI sử dụng OpenRouter đã sẵn sàng!
+The AI chat system using OpenRouter is ready!
 
-## 🔧 Cập nhật gần nhất (01/04/2026)
+## 🔧 Latest Update (01/04/2026)
 
-### Chuyển sang OpenRouter (MIỄN PHÍ)
-- **Lý do:** OpenAI API key đã vượt quá quota
-- **Giải pháp:** Tích hợp OpenRouter với model miễn phí Llama 3.1 8B
-- **Files đã sửa:**
-  - `gemini_server.py` - Sử dụng OpenRouter API
-  - `test_chat.py` - Kiểm tra OpenRouter API key
-  - `requirements.txt` - Vẫn dùng `openai>=1.0.0` (tương thích OpenRouter)
+### Switched to OpenRouter (FREE)
+- **Reason:** OpenAI API key exceeded quota
+- **Solution:** Integrated OpenRouter with free Llama 3.1 8B model
+- **Files modified:**
+  - `gemini_server.py` - Using OpenRouter API
+  - `test_chat.py` - Testing OpenRouter API key
+  - `requirements.txt` - Still using `openai>=1.0.0` (compatible with OpenRouter)
 
-### 📁 Files hệ thống:
+### 📁 System Files:
 
-1. **gemini_chat.html** - Giao diện chat đẹp mắt
+1. **gemini_chat.html** - Beautiful chat interface
 2. **gemini_server.py** - Backend server (port 9001) - **OpenRouter Version**
-3. **CHAT_README.md** - Hướng dẫn sử dụng
-4. **test_chat.py** - Script test hệ thống
-5. **requirements.txt** - Đã cập nhật với `openai>=1.0.0`
+3. **CHAT_README.md** - User guide
+4. **test_chat.py** - System test script
+5. **requirements.txt** - Updated with `openai>=1.0.0`
 
-## 🚀 Cách sử dụng
+## 🚀 How to Use
 
-### Bước 1: Lấy OpenRouter API Key (MIỄN PHÍ)
-1. Truy cập: https://openrouter.ai/keys
-2. Đăng nhập hoặc tạo tài khoản
-3. Tạo API Key mới
+### Step 1: Get OpenRouter API Key (FREE)
+1. Visit: https://openrouter.ai/keys
+2. Sign in or create account
+3. Create new API Key
 4. Copy API Key
 
-### Bước 2: Set API Key
+### Step 2: Set API Key
 **Windows:**
 ```cmd
 set OPENROUTER_API_KEY=your_key_here
@@ -41,24 +41,24 @@ set OPENROUTER_API_KEY=your_key_here
 export OPENROUTER_API_KEY=your_key_here
 ```
 
-Hoặc sửa trực tiếp trong file `gemini_server.py` dòng 15.
+Or edit directly in `gemini_server.py` line 15.
 
-### Bước 3: Chạy server
+### Step 3: Run server
 ```bash
 python gemini_server.py
 ```
 
-### Bước 4: Mở browser
-Truy cập: **http://localhost:9001**
+### Step 4: Open browser
+Access: **http://localhost:9001**
 
-## 💡 Tính năng chính
+## 💡 Key Features
 
-- ✨ Thiết kế đẹp, hiện đại
+- ✨ Beautiful, modern design
 - 📱 Responsive (mobile-friendly)
-- 💬 Real-time chat với Llama 3.1 8B (miễn phí)
+- 💬 Real-time chat with Llama 3.1 8B (free)
 - ⌨️ Typing indicator
 - 🗑️ Clear chat history
-- ⚡ Quick actions (Churn Prediction, Cải thiện doanh số, Phân tích KH, Random Forest)
+- ⚡ Quick actions (Churn Prediction, Improve Sales, Customer Analysis, Random Forest)
 
 ## 🔧 Test results
 
@@ -83,22 +83,22 @@ Test Results: 2/3 passed
 ==================================================
 ```
 
-**Lưu ý:** Test fail ở API Key là expected vì chưa set API Key. Sau khi set API Key, tất cả tests sẽ pass.
+**Note:** Test fail on API Key is expected because API Key is not set. After setting API Key, all tests will pass.
 
-## 💰 Chi phí OpenRouter
+## 💰 OpenRouter Costs
 
-- **Llama 3.1 8B:** **HOÀN TOÀN MIỄN PHÍ**
-- **Ưu điểm:** Không giới hạn quota, không cần nạp tiền
-- **Model:** Meta Llama 3.1 8B Instruct (chất lượng tốt)
+- **Llama 3.1 8B:** **COMPLETELY FREE**
+- **Advantages:** Unlimited quota, no top-up required
+- **Model:** Meta Llama 3.1 8B Instruct (good quality)
 
-## 🎯 Cách chạy
+## 🎯 How to Run
 
-1. **Lấy API Key miễn phí** tại: https://openrouter.ai/keys
-2. **Set API Key** theo hướng dẫn trên
-3. **Chạy server**: `python gemini_server.py`
-4. **Mở browser**: http://localhost:9001
-5. **Bắt đầu chat** với AI Assistant!
+1. **Get free API Key** at: https://openrouter.ai/keys
+2. **Set API Key** as instructed above
+3. **Run server**: `python gemini_server.py`
+4. **Open browser**: http://localhost:9001
+5. **Start chatting** with AI Assistant!
 
 ---
 
-**Chúc bạn sử dụng vui vẻ! 🚀**
+**Have fun using it! 🚀**

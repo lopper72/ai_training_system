@@ -1,63 +1,63 @@
 # AI Training System for Sales Data Analysis
 
-Hệ thống AI training để phân tích dữ liệu bán hàng từ bảng `scm_sal_main` và `scm_sal_data`.
+AI training system for analyzing sales data from `scm_sal_main` and `scm_sal_data` tables.
 
-## Cấu trúc dự án
+## Project Structure
 
 ```
 ai_training_system/
 ├── config/
-│   ├── database.json          # Cấu hình kết nối database
-│   └── mapping.json           # JSON mapping cho data transformation
+│   ├── database.json          # Database connection configuration
+│   └── mapping.json           # JSON mapping for data transformation
 ├── data/
-│   ├── raw/                   # Dữ liệu gốc từ DB
-│   ├── processed/             # Dữ liệu đã xử lý
-│   └── models/                # Models đã train
+│   ├── raw/                   # Raw data from DB
+│   ├── processed/             # Processed data
+│   └── models/                # Trained models
 ├── src/
-│   ├── extractors/            # Module trích xuất dữ liệu
+│   ├── extractors/            # Data extraction modules
 │   │   ├── database_extractor.py
 │   │   └── sales_extractor.py
-│   ├── transformers/          # Module chuyển đổi dữ liệu
+│   ├── transformers/          # Data transformation modules
 │   │   ├── data_transformer.py
 │   │   └── feature_engineer.py
-│   ├── trainers/              # Module training ML
+│   ├── trainers/              # ML training modules
 │   │   ├── model_trainer.py
 │   │   ├── churn_predictor.py
 │   │   └── sales_forecaster.py
-│   └── query/                 # Module query AI
+│   └── query/                 # AI query module
 │       └── ai_query_interface.py
 ├── scripts/
-│   └── scheduled_training.py  # Script chạy theo lịch
+│   └── scheduled_training.py  # Scheduled training script
 ├── logs/                      # Log files
 ├── requirements.txt
 ├── main.py                    # Entry point
 └── README.md
 ```
 
-## Tính năng chính
+## Key Features
 
-1. **Data Extraction**: Trích xuất dữ liệu từ scm_sal_main và scm_sal_data
-2. **Data Transformation**: Chuyển đổi và làm sạch dữ liệu theo JSON mapping
-3. **Feature Engineering**: Tạo features cho ML models (RFM, temporal, product, customer)
-4. **ML Training**: Training các mô hình ML:
-   - **Churn Prediction**: Dự đoán khách hàng rời bỏ
-   - **Sales Forecast**: Dự đoán doanh số bán hàng
-   - **Customer Segmentation**: Phân khúc khách hàng
-5. **AI Query**: Giao diện prompt để hỏi AI về dữ liệu
-6. **Scheduled Training**: Chạy training tự động theo lịch (daily/weekly)
+1. **Data Extraction**: Extract data from scm_sal_main and scm_sal_data
+2. **Data Transformation**: Transform and clean data according to JSON mapping
+3. **Feature Engineering**: Create features for ML models (RFM, temporal, product, customer)
+4. **ML Training**: Train ML models:
+   - **Churn Prediction**: Predict customer churn
+   - **Sales Forecast**: Predict sales revenue
+   - **Customer Segmentation**: Segment customers
+5. **AI Query**: Prompt-based interface to query AI about data
+6. **Scheduled Training**: Run automatic training on schedule (daily/weekly)
 
-## Cài đặt
+## Installation
 
-### 1. Cài đặt dependencies
+### 1. Install dependencies
 
 ```bash
 cd ai_training_system
 pip install -r requirements.txt
 ```
 
-### 2. Cấu hình database
+### 2. Configure database
 
-Chỉnh sửa file `config/database.json`:
+Edit `config/database.json`:
 
 ```json
 {
@@ -72,73 +72,73 @@ Chỉnh sửa file `config/database.json`:
 }
 ```
 
-### 3. Tạo thư mục cần thiết
+### 3. Create necessary directories
 
 ```bash
 mkdir -p data/processed data/models logs
 ```
 
-## Sử dụng
+## Usage
 
 ### 1. Extract Data
 
-Trích xuất và làm sạch dữ liệu từ database:
+Extract and clean data from database:
 
 ```bash
-# Extract data tháng hiện tại
+# Extract current month data
 python main.py extract
 
-# Extract data khoảng thời gian cụ thể
+# Extract specific date range
 python main.py extract --date-from 2025-01-01 --date-to 2025-12-31
 ```
 
 ### 2. Train Models
 
-Training các mô hình ML:
+Train ML models:
 
 ```bash
-# Train tất cả models
+# Train all models
 python main.py train
 
-# Train chỉ churn prediction
+# Train only churn prediction
 python main.py train --model churn
 
-# Train chỉ sales forecast
+# Train only sales forecast
 python main.py train --model forecast
 ```
 
 ### 3. Query AI
 
-Hỏi AI về dữ liệu:
+Query AI about data:
 
 ```bash
 # Interactive mode
 python main.py query --interactive
 
 # Single query
-python main.py query --query "Top khách hàng mua nhiều nhất"
-python main.py query --query "Xu hướng doanh số theo tháng"
-python main.py query --query "Sản phẩm bán chạy nhất"
-python main.py query --query "Dự báo doanh số 30 ngày tới"
+python main.py query --query "Top customers by purchases"
+python main.py query --query "Monthly sales trends"
+python main.py query --query "Bestselling products"
+python main.py query --query "30-day sales forecast"
 ```
 
 ### 4. Scheduled Training
 
-Chạy training tự động theo lịch:
+Run automatic training on schedule:
 
 ```bash
 python main.py scheduled
 ```
 
-Lịch trình:
-- **Daily**: 02:00 hàng ngày - Incremental training
-- **Weekly**: 03:00 Chủ nhật - Full retrain
+Schedule:
+- **Daily**: 02:00 daily - Incremental training
+- **Weekly**: 03:00 Sunday - Full retrain
 
 ## JSON Mapping Configuration
 
-File `config/mapping.json` định nghĩa cách chuyển đổi dữ liệu:
+`config/mapping.json` defines how to transform data:
 
-### Cấu trúc chính:
+### Main structure:
 
 ```json
 {
@@ -147,7 +147,7 @@ File `config/mapping.json` định nghĩa cách chuyển đổi dữ liệu:
       "columns": {
         "column_name": {
           "type": "string|decimal|date",
-          "description": "Mô tả",
+          "description": "Description",
           "ai_usage": "identifier|filter|target_variable"
         }
       }
@@ -171,33 +171,33 @@ File `config/mapping.json` định nghĩa cách chuyển đổi dữ liệu:
 }
 ```
 
-### Thêm module mới:
+### Adding new module:
 
-1. Thêm bảng mới vào `database_tables`
-2. Thêm transformation vào `data_transformation`
-3. Thêm model vào `ml_models`
-4. Chạy lại extraction và training
+1. Add new table to `database_tables`
+2. Add transformation to `data_transformation`
+3. Add model to `ml_models`
+4. Run extraction and training again
 
 ## ML Models
 
 ### 1. Churn Prediction
 
-**Mục đích**: Dự đoán khách hàng có nguy cơ rời bỏ
+**Purpose**: Predict customers at risk of churning
 
 **Features**:
-- Recency: Số ngày từ lần mua cuối
-- Frequency: Số lần mua hàng
-- Monetary: Tổng giá trị mua hàng
-- Avg Order Value: Giá trị trung bình mỗi đơn
+- Recency: Days since last purchase
+- Frequency: Number of purchases
+- Monetary: Total purchase value
+- Avg Order Value: Average order value
 - Days Since Last Purchase
 
 **Output**:
-- `churn_prediction`: 0 (Không rời bỏ) / 1 (Rời bỏ)
+- `churn_prediction`: 0 (No churn) / 1 (Churn)
 - `churn_risk`: Low / High
 
 ### 2. Sales Forecast
 
-**Mục đích**: Dự đoán doanh số bán hàng
+**Purpose**: Predict sales revenue
 
 **Features**:
 - Temporal: year, month, quarter, day_of_week
@@ -205,11 +205,11 @@ File `config/mapping.json` định nghĩa cách chuyển đổi dữ liệu:
 - Rolling: revenue_ma_7, revenue_ma_30
 
 **Output**:
-- `forecasted_revenue`: Doanh số dự đoán
+- `forecasted_revenue`: Predicted revenue
 
 ### 3. Customer Segmentation
 
-**Mục đích**: Phân khúc khách hàng theo RFM
+**Purpose**: Segment customers by RFM
 
 **Features**:
 - Recency Score (1-5)
@@ -217,79 +217,79 @@ File `config/mapping.json` định nghĩa cách chuyển đổi dữ liệu:
 - Monetary Score (1-5)
 
 **Segments**:
-- Champion: RFM cao
-- Potential Loyalist: RFM trung bình cao
-- Needs Attention: RFM trung bình
-- At Risk: RFM thấp
+- Champion: High RFM
+- Potential Loyalist: Medium-high RFM
+- Needs Attention: Medium RFM
+- At Risk: Low RFM
 
 ## AI Query Examples
 
-### Khách hàng:
-- "Top 10 khách hàng mua nhiều nhất"
-- "Tỷ lệ khách hàng mua lại"
-- "Khách hàng có nguy cơ rời bỏ cao"
-- "Phân khúc khách hàng"
+### Customers:
+- "Top 10 customers by purchases"
+- "Customer repeat rate"
+- "Customers at high risk of churning"
+- "Customer segments"
 
-### Sản phẩm:
-- "Sản phẩm bán chạy nhất"
-- "Doanh số theo danh mục"
-- "Doanh số theo thương hiệu"
-- "Sản phẩm nên nhập thêm"
+### Products:
+- "Bestselling products"
+- "Sales by category"
+- "Sales by brand"
+- "Products to restock"
 
-### Xu hướng:
-- "Xu hướng doanh số theo tháng"
-- "Doanh số theo quý"
-- "Ngày trong tuần có doanh số cao nhất"
-- "Tăng trưởng doanh số"
+### Trends:
+- "Monthly sales trends"
+- "Quarterly sales"
+- "Best day of week for sales"
+- "Sales growth"
 
-### Dự báo:
-- "Dự báo doanh số 30 ngày tới"
-- "Dự báo doanh số 90 ngày tới"
-- "Kế hoạch nhập hàng dựa trên dự báo"
+### Forecasts:
+- "30-day sales forecast"
+- "90-day sales forecast"
+- "Inventory planning based on forecast"
 
 ## Logging
 
-Logs được lưu trong thư mục `logs/`:
-- `scheduled_training.log`: Log của scheduled training
+Logs are stored in `logs/`:
+- `scheduled_training.log`: Scheduled training logs
 
-## Mở rộng hệ thống
+## Extending the System
 
-### Thêm data source mới:
+### Adding new data source:
 
-1. Tạo extractor mới trong `src/extractors/`
-2. Thêm mapping trong `config/mapping.json`
-3. Tạo transformer nếu cần
-4. Cập nhật `main.py`
+1. Create new extractor in `src/extractors/`
+2. Add mapping in `config/mapping.json`
+3. Create transformer if needed
+4. Update `main.py`
 
-### Thêm ML model mới:
+### Adding new ML model:
 
-1. Tạo trainer mới trong `src/trainers/`
-2. Thêm model config trong `config/mapping.json`
-3. Cập nhật scheduled training nếu cần
-4. Thêm query handler trong `ai_query_interface.py`
+1. Create new trainer in `src/trainers/`
+2. Add model config in `config/mapping.json`
+3. Update scheduled training if needed
+4. Add query handler in `ai_query_interface.py`
 
-### Thêm query type mới:
+### Adding new query type:
 
-1. Thêm keywords trong `_classify_query()`
-2. Tạo handler method `_handle_xxx_query()`
-3. Thêm vào `process_query()`
+1. Add keywords in `_classify_query()`
+2. Create handler method `_handle_xxx_query()`
+3. Add to `process_query()`
 
 ## Troubleshooting
 
-### Lỗi kết nối database:
-- Kiểm tra `config/database.json`
-- Đảm bảo database đang chạy
-- Kiểm tra firewall/network
+### Database connection error:
+- Check `config/database.json`
+- Ensure database is running
+- Check firewall/network
 
-### Lỗi training:
-- Kiểm tra dữ liệu có đủ không (>100 records)
-- Kiểm tra missing values
-- Xem logs trong `logs/`
+### Training error:
+- Check if data is sufficient (>100 records)
+- Check for missing values
+- View logs in `logs/`
 
-### Lỗi query:
-- Đảm bảo đã chạy extraction trước
-- Kiểm tra file data trong `data/processed/`
-- Xem query history
+### Query error:
+- Ensure extraction has been run first
+- Check data files in `data/processed/`
+- View query history
 
 ## License
 

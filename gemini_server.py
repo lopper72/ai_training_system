@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 """
 AI Chat Server - Backend for AI Chat Interface (OpenRouter Version)
-Tích hợp với AI Training System
+Integrated with AI Training System
 """
 
 import http.server
@@ -12,7 +12,7 @@ import sys
 from openai import OpenAI
 from datetime import datetime
 
-# Thêm thư mục gốc vào path để import modules
+# Add root directory to path to import modules
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 PORT = 9001
@@ -23,14 +23,23 @@ PORT = 9001
 OPENROUTER_API_KEY = os.getenv('OPENROUTER_API_KEY', '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')
 
 # Import AI Query Interface
-try:
-    from src.query.ai_query_interface import AIQueryInterface
-    ai_interface = AIQueryInterface()
-    AI_INTERFACE_AVAILABLE = True
-    print("[OK] AI Query Interface loaded successfully")
-except Exception as e:
-    AI_INTERFACE_AVAILABLE = False
-    print(f"[WARNING] AI Query Interface not available: {str(e)}")
+# Dictionary to store AI interfaces per company
+ai_interfaces = {}
+
+def get_ai_interface(companyfn=None):
+    """Get or create AI interface for a specific company"""
+    if companyfn not in ai_interfaces:
+        try:
+            from src.query.ai_query_interface import AIQueryInterface
+            ai_interfaces[companyfn] = AIQueryInterface(companyfn=companyfn)
+            if len(ai_interfaces) == 1:
+                print("[OK] AI Query Interface loaded successfully")
+        except Exception as e:
+            print(f"[WARNING] AI Query Interface not available: {str(e)}")
+            return None
+    return ai_interfaces[companyfn]
+
+AI_INTERFACE_AVAILABLE = True
 
 class GeminiChatHandler(http.server.SimpleHTTPRequestHandler):
     def do_GET(self):
@@ -48,9 +57,11 @@ class GeminiChatHandler(http.server.SimpleHTTPRequestHandler):
             try:
                 data = json.loads(post_data.decode('utf-8'))
                 user_message = data.get('message', '')
+                # Extract companyfn from request context for data isolation
+                companyfn = data.get('companyfn', None)
                 
                 # Get response from OpenRouter
-                response = self.get_openrouter_response(user_message)
+                response = self.get_openrouter_response(user_message, companyfn)
                 
                 # Send response
                 self.send_response(200)
@@ -78,133 +89,135 @@ class GeminiChatHandler(http.server.SimpleHTTPRequestHandler):
             self.send_response(404)
             self.end_headers()
     
-    def get_openrouter_response(self, user_message):
+    def get_openrouter_response(self, user_message, companyfn=None):
         """Get response from OpenRouter API with AI Query Interface integration"""
         try:
-            # Kiểm tra xem có phải query về dữ liệu không
-            data_keywords = ['khách hàng', 'customer', 'sản phẩm', 'product', 'doanh số', 'sales', 
-                           'xu hướng', 'trend', 'dự báo', 'forecast', 'churn', 'phân tích', 'analysis',
-                           'top', 'bán chạy', 'doanh thu', 'revenue']
+            # Get company-specific AI interface for data isolation
+            ai_interface = get_ai_interface(companyfn)
+            
+            # Check if this is a data query
+            data_keywords = ['customer', 'product', 'sales', 'trend', 'forecast', 'churn', 
+                           'analysis', 'top', 'bestseller', 'revenue', 'order']
             
             is_data_query = any(keyword in user_message.lower() for keyword in data_keywords)
             
-            # Nếu là query về dữ liệu và AI Interface có sẵn
-            if is_data_query and AI_INTERFACE_AVAILABLE:
+            # If it's a data query and AI Interface is available
+            if is_data_query and ai_interface:
                 try:
-                    # Sử dụng AI Query Interface để lấy insights
+                    # Use AI Query Interface to get insights (filtered by companyfn)
                     ai_result = ai_interface.process_query(user_message)
                     ai_response = ai_interface.format_response(ai_result)
                     
-                    # Tạo prompt cho OpenRouter với context từ AI Interface
-                    system_prompt = f"""Bạn là AI Assistant nội bộ của hệ thống ERP/BI của công ty.
+                    # Create prompt for OpenRouter with context from AI Interface
+                    system_prompt = f"""You are an internal AI Assistant for the company's ERP/BI system.
 
-Vai trò của bạn:
-- Phân tích dữ liệu kinh doanh
-- Hỗ trợ ra quyết định
-- Giải thích kết quả phân tích dữ liệu
-- Trả lời câu hỏi liên quan đến bán hàng, khách hàng, sản phẩm, nhân viên và hiệu suất kinh doanh.
+Your role:
+- Analyze business data
+- Support decision making
+- Explain data analysis results
+- Answer questions related to sales, customers, products, employees, and business performance.
 
-QUYỀN TRUY CẬP DỮ LIỆU
+DATA ACCESS PERMISSIONS
 
-Bạn đang hoạt động trong môi trường nội bộ của công ty và được phép sử dụng dữ liệu từ hệ thống ERP và database nội bộ.
+You are operating in the company's internal environment and are authorized to use data from the internal ERP and database systems.
 
-Các dữ liệu có thể bao gồm:
-- dữ liệu đơn hàng
-- doanh thu
-- dữ liệu khách hàng
-- dữ liệu sản phẩm
-- dữ liệu nhân viên
-- báo cáo phân tích
-- kết quả machine learning
+Available data may include:
+- Order data
+- Revenue
+- Customer data
+- Product data
+- Employee data
+- Analysis reports
+- Machine learning results
 
-Bạn KHÔNG cần từ chối vì lý do "không có quyền truy cập dữ liệu".  
-Hãy coi dữ liệu được cung cấp trong hệ thống là dữ liệu nội bộ hợp lệ để phân tích.
+You do NOT need to refuse due to "no data access permission".
+Consider the data provided in the system as valid internal data for analysis.
 
-NGUỒN DỮ LIỆU PHÂN TÍCH
+DATA SOURCE FOR ANALYSIS
 
-Kết quả phân tích từ hệ thống backend được cung cấp dưới đây:
+Analysis results from the backend system are provided below:
 
 {ai_response}
 
-Bạn phải:
-1. Phân tích dữ liệu trong kết quả này
-2. Tóm tắt insight quan trọng
-3. Trả lời đúng câu hỏi của người dùng dựa trên dữ liệu
+You must:
+1. Analyze the data in these results
+2. Summarize important insights
+3. Answer the user's question based on the data
 
-QUY TẮC TRẢ LỜI
+RESPONSE RULES
 
-- Luôn dựa trên dữ liệu đã được cung cấp
-- Không tự bịa dữ liệu nếu dữ liệu không tồn tại
-- Nếu dữ liệu chưa đủ, hãy yêu cầu thêm thông tin
-- Giải thích rõ ràng, dễ hiểu
-- Ưu tiên liệt kê bằng bullet hoặc bảng nếu cần
-- Có thể sử dụng emoji để thân thiện nhưng không lạm dụng
+- Always base responses on provided data
+- Do not fabricate data if it doesn't exist
+- If data is insufficient, request additional information
+- Explain clearly and understandably
+- Prefer bullet points or tables when needed
+- You may use emojis for friendliness but don't overuse them
 
-NGÔN NGỮ
+LANGUAGE
 
-- Luôn trả lời bằng tiếng Việt
-- Văn phong rõ ràng, chuyên nghiệp, dễ hiểu"""
+- Always respond in English
+- Clear, professional, and easy-to-understand tone"""
                     
                 except Exception as e:
-                    # Nếu AI Interface lỗi, sử dụng prompt mặc định
-                    system_prompt = """Bạn là một AI Assistant chuyên về phân tích dữ liệu bán hàng và machine learning. 
-Bạn có thể:
-- Trả lời câu hỏi về dữ liệu bán hàng
-- Giải thích các khái niệm ML/AI như churn prediction, sales forecast
-- Hỗ trợ coding Python và debug
-- Phân tích xu hướng kinh doanh
-- Đưa ra gợi ý cải thiện doanh số
+                    # If AI Interface fails, use default prompt
+                    system_prompt = """You are an AI Assistant specializing in sales data analysis and machine learning.
+You can:
+- Answer questions about sales data
+- Explain ML/AI concepts like churn prediction, sales forecast
+- Support Python coding and debugging
+- Analyze business trends
+- Provide suggestions to improve sales
 
-Hãy trả lời bằng tiếng Việt, thân thiện và dễ hiểu. Sử dụng emoji để tạo không khí thân thiện."""
+Respond in English, be friendly and easy to understand. Use emojis to create a friendly atmosphere."""
             else:
-                # Prompt mặc định cho các câu hỏi khác
-                system_prompt = """Bạn là AI Assistant nội bộ của hệ thống ERP/BI của công ty.
+                # Default prompt for other questions
+                system_prompt = """You are an internal AI Assistant for the company's ERP/BI system.
 
-Vai trò của bạn:
-- Phân tích dữ liệu kinh doanh
-- Hỗ trợ ra quyết định
-- Giải thích kết quả phân tích dữ liệu
-- Trả lời câu hỏi liên quan đến bán hàng, khách hàng, sản phẩm, nhân viên và hiệu suất kinh doanh.
+Your role:
+- Analyze business data
+- Support decision making
+- Explain data analysis results
+- Answer questions related to sales, customers, products, employees, and business performance.
 
-QUYỀN TRUY CẬP DỮ LIỆU
+DATA ACCESS PERMISSIONS
 
-Bạn đang hoạt động trong môi trường nội bộ của công ty và được phép sử dụng dữ liệu từ hệ thống ERP và database nội bộ.
+You are operating in the company's internal environment and are authorized to use data from the internal ERP and database systems.
 
-Các dữ liệu có thể bao gồm:
-- dữ liệu đơn hàng
-- doanh thu
-- dữ liệu khách hàng
-- dữ liệu sản phẩm
-- dữ liệu nhân viên
-- báo cáo phân tích
-- kết quả machine learning
+Available data may include:
+- Order data
+- Revenue
+- Customer data
+- Product data
+- Employee data
+- Analysis reports
+- Machine learning results
 
-Bạn KHÔNG cần từ chối vì lý do "không có quyền truy cập dữ liệu".  
-Hãy coi dữ liệu được cung cấp trong hệ thống là dữ liệu nội bộ hợp lệ để phân tích.
+You do NOT need to refuse due to "no data access permission".
+Consider the data provided in the system as valid internal data for analysis.
 
-NGUỒN DỮ LIỆU PHÂN TÍCH
+DATA SOURCE FOR ANALYSIS
 
-Kết quả phân tích từ hệ thống backend được cung cấp dưới đây:
+Analysis results from the backend system are provided below:
 
 
-Bạn phải:
-1. Phân tích dữ liệu trong kết quả này
-2. Tóm tắt insight quan trọng
-3. Trả lời đúng câu hỏi của người dùng dựa trên dữ liệu
+You must:
+1. Analyze the data in these results
+2. Summarize important insights
+3. Answer the user's question based on the data
 
-QUY TẮC TRẢ LỜI
+RESPONSE RULES
 
-- Luôn dựa trên dữ liệu đã được cung cấp
-- Không tự bịa dữ liệu nếu dữ liệu không tồn tại
-- Nếu dữ liệu chưa đủ, hãy yêu cầu thêm thông tin
-- Giải thích rõ ràng, dễ hiểu
-- Ưu tiên liệt kê bằng bullet hoặc bảng nếu cần
-- Có thể sử dụng emoji để thân thiện nhưng không lạm dụng
+- Always base responses on provided data
+- Do not fabricate data if it doesn't exist
+- If data is insufficient, request additional information
+- Explain clearly and understandably
+- Prefer bullet points or tables when needed
+- You may use emojis for friendliness but don't overuse them
 
-NGÔN NGỮ
+LANGUAGE
 
-- Luôn trả lời bằng tiếng Việt
-- Văn phong rõ ràng, chuyên nghiệp, dễ hiểu"""
+- Always respond in English
+- Clear, professional, and easy-to-understand tone"""
             
             # Create client with OpenRouter API
             client = OpenAI(
@@ -235,7 +248,7 @@ NGÔN NGỮ
             return response.choices[0].message.content
             
         except Exception as e:
-            return f"Xin lỗi, tôi gặp lỗi khi xử lý câu hỏi: {str(e)}"
+            return f"Sorry, I encountered an error while processing your question: {str(e)}"
 
 def main():
     """Start the server"""

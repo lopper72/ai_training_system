@@ -5,32 +5,32 @@
   
   "database_tables": {
     "scm_sal_main": {
-      "description": "Bảng chính chứa thông tin đơn hàng bán",
+      "description": "Main table containing sales order information",
       "primary_key": "idcode",
       "columns": {
         "idcode": {
           "type": "integer",
-          "description": "Khóa chính tự tăng",
+          "description": "Auto-increment primary key",
           "ai_usage": "identifier"
         },
         "uniquenum_pri": {
           "type": "string",
-          "description": "Khóa chính duy nhất (business key)",
+          "description": "Unique primary key (business key)",
           "ai_usage": "identifier"
         },
         "companyfn": {
           "type": "string",
-          "description": "Mã công ty",
+          "description": "Company code",
           "ai_usage": "filter"
         },
         "dnum_auto": {
           "type": "string",
-          "description": "Số đơn hàng tự động",
+          "description": "Auto-generated order number",
           "ai_usage": "identifier"
         },
         "tag_table_usage": {
           "type": "string",
-          "description": "Loại giao dịch (sal_soe, sal_soc, sal_inv, sal_quo, etc.)",
+          "description": "Transaction type (sal_soe, sal_soc, sal_inv, sal_quo, etc.)",
           "ai_usage": "category",
           "mapping_values": {
             "sal_soe": "Sales Order Entry",
@@ -44,341 +44,341 @@
         },
         "party_unique": {
           "type": "string",
-          "description": "ID duy nhất của khách hàng",
+          "description": "Unique customer ID",
           "ai_usage": "customer_identifier"
         },
         "party_code": {
           "type": "string",
-          "description": "Mã khách hàng",
+          "description": "Customer code",
           "ai_usage": "customer_code"
         },
         "party_desc": {
           "type": "string",
-          "description": "Tên khách hàng",
+          "description": "Customer name",
           "ai_usage": "customer_name"
         },
         "date_trans": {
           "type": "date",
           "format": "YYYY-MM-DD",
-          "description": "Ngày giao dịch",
+          "description": "Transaction date",
           "ai_usage": "temporal_feature"
         },
         "date_due": {
           "type": "date",
           "format": "YYYY-MM-DD",
-          "description": "Ngày đáo hạn",
+          "description": "Due date",
           "ai_usage": "temporal_feature"
         },
         "amount_local": {
           "type": "decimal",
-          "description": "Số tiền nội tệ",
+          "description": "Local currency amount",
           "ai_usage": "target_variable"
         },
         "amount_forex": {
           "type": "decimal",
-          "description": "Số tiền ngoại tệ",
+          "description": "Foreign currency amount",
           "ai_usage": "target_variable"
         },
         "curr_short_forex": {
           "type": "string",
-          "description": "Ký hiệu tiền tệ (VND, USD, etc.)",
+          "description": "Currency symbol (VND, USD, etc.)",
           "ai_usage": "currency"
         },
         "curr_rate_forex_f_calc": {
           "type": "decimal",
-          "description": "Tỷ giá",
+          "description": "Exchange rate",
           "ai_usage": "exchange_rate"
         },
         "deptunit_code": {
           "type": "string",
-          "description": "Mã đơn vị kinh doanh",
+          "description": "Business unit code",
           "ai_usage": "business_unit"
         },
         "deptunit_desc": {
           "type": "string",
-          "description": "Tên đơn vị kinh doanh",
+          "description": "Business unit name",
           "ai_usage": "business_unit"
         },
         "staff_code": {
           "type": "string",
-          "description": "Mã nhân viên",
+          "description": "Staff code",
           "ai_usage": "salesperson"
         },
         "staff_unique": {
           "type": "string",
-          "description": "ID nhân viên",
+          "description": "Staff ID",
           "ai_usage": "salesperson"
         },
         "location_code": {
           "type": "string",
-          "description": "Mã kho/vị trí",
+          "description": "Warehouse/location code",
           "ai_usage": "location"
         },
         "creditterm_desc": {
           "type": "string",
-          "description": "Điều khoản thanh toán",
+          "description": "Payment terms",
           "ai_usage": "payment_terms"
         },
         "delivtype_desc": {
           "type": "string",
-          "description": "Loại giao hàng",
+          "description": "Delivery type",
           "ai_usage": "delivery_type"
         },
         "sendby_desc": {
           "type": "string",
-          "description": "Phương thức vận chuyển",
+          "description": "Shipping method",
           "ai_usage": "shipping_method"
         },
         "notes_memo": {
           "type": "string",
-          "description": "Ghi chú",
+          "description": "Notes",
           "ai_usage": "text_feature"
         },
         "tag_void_yn": {
           "type": "string",
           "values": ["y", "n"],
-          "description": "Đánh dấu đã hủy",
+          "description": "Void flag",
           "ai_usage": "filter"
         },
         "salestaxpct": {
           "type": "decimal",
-          "description": "Phần trăm thuế",
+          "description": "Tax percentage",
           "ai_usage": "tax_rate"
         }
       }
     },
     
     "scm_sal_data": {
-      "description": "Bảng chi tiết các mặt hàng trong đơn hàng",
+      "description": "Detail table containing line items in orders",
       "primary_key": "idcode",
       "foreign_key": "uniquenum_pri",
       "columns": {
         "idcode": {
           "type": "integer",
-          "description": "Khóa chính tự tăng",
+          "description": "Auto-increment primary key",
           "ai_usage": "identifier"
         },
         "uniquenum_uniq": {
           "type": "string",
-          "description": "Khóa chính duy nhất của dòng (business key)",
+          "description": "Unique line item key (business key)",
           "ai_usage": "identifier"
         },
         "uniquenum_pri": {
           "type": "string",
-          "description": "Khóa ngoại đến scm_sal_main",
+          "description": "Foreign key to scm_sal_main",
           "ai_usage": "foreign_key"
         },
         "companyfn": {
           "type": "string",
-          "description": "Mã công ty",
+          "description": "Company code",
           "ai_usage": "filter"
         },
         "tag_table_usage": {
           "type": "string",
-          "description": "Loại giao dịch",
+          "description": "Transaction type",
           "ai_usage": "category"
         },
         "row_item_num": {
           "type": "decimal",
-          "description": "Số thứ tự dòng",
+          "description": "Line item sequence number",
           "ai_usage": "sequence"
         },
         "stkcode_code": {
           "type": "string",
-          "description": "Mã sản phẩm",
+          "description": "Product code",
           "ai_usage": "product_code"
         },
         "stkcode_unique": {
           "type": "string",
-          "description": "ID sản phẩm",
+          "description": "Product ID",
           "ai_usage": "product_identifier"
         },
         "stkcode_desc": {
           "type": "string",
-          "description": "Tên sản phẩm",
+          "description": "Product name",
           "ai_usage": "product_name"
         },
         "skucode_code": {
           "type": "string",
-          "description": "Mã SKU",
+          "description": "SKU code",
           "ai_usage": "sku"
         },
         "brand_code": {
           "type": "string",
-          "description": "Mã thương hiệu",
+          "description": "Brand code",
           "ai_usage": "brand"
         },
         "brand_unique": {
           "type": "string",
-          "description": "ID thương hiệu",
+          "description": "Brand ID",
           "ai_usage": "brand"
         },
         "brand_desc": {
           "type": "string",
-          "description": "Tên thương hiệu",
+          "description": "Brand name",
           "ai_usage": "brand"
         },
         "stkcate_code": {
           "type": "string",
-          "description": "Mã danh mục sản phẩm",
+          "description": "Product category code",
           "ai_usage": "category"
         },
         "stkcate_unique": {
           "type": "string",
-          "description": "ID danh mục sản phẩm",
+          "description": "Product category ID",
           "ai_usage": "category"
         },
         "stkcate_desc": {
           "type": "string",
-          "description": "Tên danh mục sản phẩm",
+          "description": "Product category name",
           "ai_usage": "category"
         },
         "stkvendor_code": {
           "type": "string",
-          "description": "Mã nhà cung cấp sản phẩm",
+          "description": "Product vendor code",
           "ai_usage": "vendor"
         },
         "stkvendor_desc": {
           "type": "string",
-          "description": "Tên nhà cung cấp sản phẩm",
+          "description": "Product vendor name",
           "ai_usage": "vendor"
         },
         "qnty_total": {
           "type": "decimal",
-          "description": "Số lượng",
+          "description": "Quantity",
           "ai_usage": "quantity"
         },
         "qnty_uomstk": {
           "type": "decimal",
-          "description": "Số lượng theo đơn vị tồn kho",
+          "description": "Quantity in stock unit",
           "ai_usage": "quantity"
         },
         "bal_qnty_total": {
           "type": "decimal",
-          "description": "Số lượng còn lại",
+          "description": "Remaining quantity",
           "ai_usage": "balance_quantity"
         },
         "bal_qnty_uomstk": {
           "type": "decimal",
-          "description": "Số lượng còn lại theo đơn vị tồn kho",
+          "description": "Remaining quantity in stock unit",
           "ai_usage": "balance_quantity"
         },
         "uom_stk_code": {
           "type": "string",
-          "description": "Đơn vị tính",
+          "description": "Unit of measure",
           "ai_usage": "unit_of_measure"
         },
         "price_unitlist_forex": {
           "type": "decimal",
-          "description": "Giá niêm yết ngoại tệ",
+          "description": "List price in foreign currency",
           "ai_usage": "list_price"
         },
         "price_unitlist_local": {
           "type": "decimal",
-          "description": "Giá niêm yết nội tệ",
+          "description": "List price in local currency",
           "ai_usage": "list_price"
         },
         "price_unitrate_forex": {
           "type": "decimal",
-          "description": "Đơn giá ngoại tệ",
+          "description": "Unit price in foreign currency",
           "ai_usage": "unit_price"
         },
         "price_unitrate_local": {
           "type": "decimal",
-          "description": "Đơn giá nội tệ",
+          "description": "Unit price in local currency",
           "ai_usage": "unit_price"
         },
         "discount_pct": {
           "type": "decimal",
-          "description": "Phần trăm chiết khấu",
+          "description": "Discount percentage",
           "ai_usage": "discount"
         },
         "amount_forex": {
           "type": "decimal",
-          "description": "Thành tiền ngoại tệ",
+          "description": "Line amount in foreign currency",
           "ai_usage": "line_amount"
         },
         "amount_local": {
           "type": "decimal",
-          "description": "Thành tiền nội tệ",
+          "description": "Line amount in local currency",
           "ai_usage": "line_amount"
         },
         "amount_tax_forex": {
           "type": "decimal",
-          "description": "Tiền thuế ngoại tệ",
+          "description": "Tax amount in foreign currency",
           "ai_usage": "tax_amount"
         },
         "amount_tax_local": {
           "type": "decimal",
-          "description": "Tiền thuế nội tệ",
+          "description": "Tax amount in local currency",
           "ai_usage": "tax_amount"
         },
         "gst_taxa_code": {
           "type": "string",
-          "description": "Mã thuế",
+          "description": "Tax code",
           "ai_usage": "tax_code"
         },
         "date_trans": {
           "type": "date",
           "format": "YYYY-MM-DD",
-          "description": "Ngày giao dịch",
+          "description": "Transaction date",
           "ai_usage": "temporal_feature"
         },
         "party_unique": {
           "type": "string",
-          "description": "ID khách hàng",
+          "description": "Customer ID",
           "ai_usage": "customer_identifier"
         },
         "party_code": {
           "type": "string",
-          "description": "Mã khách hàng",
+          "description": "Customer code",
           "ai_usage": "customer_code"
         },
         "party_desc": {
           "type": "string",
-          "description": "Tên khách hàng",
+          "description": "Customer name",
           "ai_usage": "customer_name"
         },
         "staff_code": {
           "type": "string",
-          "description": "Mã nhân viên",
+          "description": "Staff code",
           "ai_usage": "salesperson"
         },
         "staff_unique": {
           "type": "string",
-          "description": "ID nhân viên",
+          "description": "Staff ID",
           "ai_usage": "salesperson"
         },
         "deptunit_code": {
           "type": "string",
-          "description": "Mã đơn vị kinh doanh",
+          "description": "Business unit code",
           "ai_usage": "business_unit"
         },
         "location_code": {
           "type": "string",
-          "description": "Mã kho",
+          "description": "Warehouse code",
           "ai_usage": "location"
         },
         "notes_memo": {
           "type": "string",
-          "description": "Ghi chú",
+          "description": "Notes",
           "ai_usage": "text_feature"
         },
         "tag_void_yn": {
           "type": "string",
           "values": ["y", "n"],
-          "description": "Đánh dấu đã hủy",
+          "description": "Void flag",
           "ai_usage": "filter"
         },
         "tag_item_taxable_yn": {
           "type": "string",
           "values": ["y", "n"],
-          "description": "Đánh dấu chịu thuế",
+          "description": "Taxable flag",
           "ai_usage": "tax_flag"
         },
         "tag_closedmain_yn": {
           "type": "string",
-          "description": "Đánh dấu đã đóng",
+          "description": "Closed flag",
           "ai_usage": "status"
         }
       }
@@ -387,7 +387,7 @@
   
   "data_transformation": {
     "customer_analysis": {
-      "description": "Dữ liệu cho phân tích khách hàng",
+      "description": "Data for customer analysis",
       "source_tables": ["scm_sal_main", "scm_sal_data"],
       "join_condition": "scm_sal_main.uniquenum_pri = scm_sal_data.uniquenum_pri",
       "output_columns": [
@@ -410,7 +410,7 @@
     },
     
     "product_analysis": {
-      "description": "Dữ liệu cho phân tích sản phẩm",
+      "description": "Data for product analysis",
       "source_tables": ["scm_sal_data"],
       "output_columns": [
         "product_code",
@@ -429,7 +429,7 @@
     },
     
     "sales_trend": {
-      "description": "Dữ liệu cho phân tích xu hướng bán hàng",
+      "description": "Data for sales trend analysis",
       "source_tables": ["scm_sal_main"],
       "output_columns": [
         "transaction_date",
@@ -450,7 +450,7 @@
     },
     
     "customer_retention": {
-      "description": "Dữ liệu cho phân tích giữ chân khách hàng",
+      "description": "Data for customer retention analysis",
       "source_tables": ["scm_sal_main"],
       "output_columns": [
         "customer_id",
@@ -506,7 +506,7 @@
   
   "ml_models": {
     "customer_churn_prediction": {
-      "description": "Dự đoán khả năng rời bỏ của khách hàng",
+      "description": "Predict customer churn probability",
       "algorithm": "RandomForestClassifier",
       "features": ["recency", "frequency", "monetary", "avg_order_value", "days_since_last_purchase"],
       "target": "is_churned",
@@ -514,7 +514,7 @@
     },
     
     "sales_forecast": {
-      "description": "Dự đoán doanh số bán hàng",
+      "description": "Predict sales revenue",
       "algorithm": "Prophet",
       "features": ["date_trans", "amount_local"],
       "target": "future_sales",
@@ -522,14 +522,14 @@
     },
     
     "product_recommendation": {
-      "description": "Gợi ý sản phẩm cho khách hàng",
+      "description": "Recommend products to customers",
       "algorithm": "CollaborativeFiltering",
       "features": ["customer_id", "product_code", "quantity"],
       "target": "purchase_probability"
     },
     
     "customer_segmentation": {
-      "description": "Phân khúc khách hàng",
+      "description": "Segment customers",
       "algorithm": "KMeans",
       "features": ["recency", "frequency", "monetary"],
       "target": "customer_segment",

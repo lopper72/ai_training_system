@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="vi">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -249,7 +249,7 @@
 <body>
     <div class="chat-container">
         <div class="chat-header">
-            <button class="clear-btn" onclick="clearChat()">🗑️ Xóa chat</button>
+            <button class="clear-btn" onclick="clearChat()">🗑️ Clear chat</button>
             <h1>🤖 ERP AI Chat Assistant</h1>
            
         </div>
@@ -257,18 +257,18 @@
         <div class="chat-messages" id="chatMessages">
             <div class="message bot">
                 <div class="message-content">
-                Xin chào!
-                Tôi có thể hỗ trợ bạn trong các nội dung sau:
+                Hello!
+                I can assist you with the following:
 
-                • Trả lời các câu hỏi liên quan đến dữ liệu bán hàng
-                • Phân tích xu hướng và hiệu quả kinh doanh
-                • Giải thích các khái niệm về Machine Learning và AI
-                • Hỗ trợ lập trình, kiểm tra lỗi (debug) và tư vấn kỹ thuật
-                • Hỗ trợ phân tích và giải thích dữ liệu từ hệ thống
+                • Answer questions related to sales data
+                • Analyze business trends and performance
+                • Explain Machine Learning and AI concepts
+                • Support programming, debugging, and technical consulting
+                • Support data analysis and interpretation from the system
 
-                Vui lòng nhập câu hỏi hoặc yêu cầu của bạn để bắt đầu.
+                Please enter your question or request to get started.
                 </div>
-                <div class="message-time">Bây giờ</div>
+                <div class="message-time">Now</div>
             </div>
         </div>
         
@@ -276,15 +276,15 @@
             <span></span>
             <span></span>
             <span></span>
-            Đang suy nghĩ...
+            Thinking...
         </div>
         
         <div class="chat-input-container">
             <div class="quick-actions">
-                <button class="quick-btn" onclick="sendQuickMessage('Giải thích về churn prediction')">📊 Churn Prediction</button>
-                <button class="quick-btn" onclick="sendQuickMessage('Làm thế nào để cải thiện doanh số?')">💰 Cải thiện doanh số</button>
-                <button class="quick-btn" onclick="sendQuickMessage('Phân tích dữ liệu khách hàng')">👥 Phân tích KH</button>
-                <button class="quick-btn" onclick="sendQuickMessage('Giải thích về Random Forest')">🌲 Random Forest</button>
+                <button class="quick-btn" onclick="sendQuickMessage('Explain churn prediction')">📊 Churn Prediction</button>
+                <button class="quick-btn" onclick="sendQuickMessage('How to improve sales?')">💰 Improve Sales</button>
+                <button class="quick-btn" onclick="sendQuickMessage('Analyze customer data')">👥 Customer Analysis</button>
+                <button class="quick-btn" onclick="sendQuickMessage('Explain Random Forest')">🌲 Random Forest</button>
             </div>
             
             <div class="error-message" id="errorMessage"></div>
@@ -294,11 +294,11 @@
                 <input 
                     type="text" 
                     id="userInput" 
-                    placeholder="Nhập câu hỏi của bạn..."
+                    placeholder="Enter your question..."
                     onkeypress="handleKeyPress(event)"
                 >
                 <button id="sendButton" onclick="sendMessage()">
-                    Gửi 📤
+                    Send 📤
                 </button>
             </div>
         </div>
@@ -309,7 +309,7 @@
         let isProcessing = false;
         
         function getCurrentTime() {
-            return new Date().toLocaleTimeString('vi-VN', {
+            return new Date().toLocaleTimeString('en-US', {
                 hour: '2-digit',
                 minute: '2-digit'
             });
@@ -388,14 +388,14 @@
                 if (data.success) {
                     addMessage(data.response, false);
                 } else {
-                    showError(data.error || 'Có lỗi xảy ra');
-                    addMessage('Xin lỗi, tôi gặp lỗi khi xử lý câu hỏi của bạn. Vui lòng thử lại sau.', false);
+                    showError(data.error || 'An error occurred');
+                    addMessage('Sorry, I encountered an error while processing your question. Please try again later.', false);
                 }
                 
             } catch (error) {
                 hideTypingIndicator();
-                showError('Không thể kết nối đến server. Vui lòng thử lại.');
-                addMessage('Xin lỗi, tôi không thể kết nối đến server. Vui lòng kiểm tra kết nối mạng và thử lại.', false);
+                showError('Cannot connect to server. Please try again.');
+                addMessage('Sorry, I cannot connect to the server. Please check your network connection and try again.', false);
             } finally {
                 isProcessing = false;
                 document.getElementById('sendButton').disabled = false;
@@ -416,26 +416,26 @@
         }
         
         function clearChat() {
-            if (confirm('Bạn có chắc muốn xóa tất cả tin nhắn?')) {
+            if (confirm('Are you sure you want to delete all messages?')) {
                 const chatMessages = document.getElementById('chatMessages');
                 chatMessages.innerHTML = `
                     <div class="message bot">
                         <div class="message-content">
-Xin chào! 👋 Tôi là AI Assistant được hỗ trợ bởi Google Gemini.
+Hello! 👋 I am an AI Assistant powered by Google Gemini.
 
-Tôi có thể giúp bạn:
-• Trả lời câu hỏi về dữ liệu bán hàng
-• Phân tích xu hướng kinh doanh
-• Giải thích các khái niệm ML/AI
-• Hỗ trợ coding và debug
-• Và nhiều hơn nữa...
+I can help you with:
+• Answer questions about sales data
+• Analyze business trends
+• Explain ML/AI concepts
+• Support coding and debugging
+• And much more...
 
-Hãy đặt câu hỏi cho tôi! 🚀
+Ask me anything! 🚀
                         </div>
-                        <div class="message-time">Bây giờ</div>
+                        <div class="message-time">Now</div>
                     </div>
                 `;
-                showSuccess('Đã xóa tất cả tin nhắn');
+                showSuccess('All messages cleared');
             }
         }
         

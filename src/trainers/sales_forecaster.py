@@ -1,6 +1,6 @@
 """
 Sales Forecaster Module
-Module dự đoán doanh số bán hàng
+Module for predicting sales revenue
 """
 
 import logging
@@ -14,14 +14,14 @@ logger = logging.getLogger(__name__)
 
 
 class SalesForecaster:
-    """Class dự đoán doanh số bán hàng"""
+    """Class for predicting sales revenue"""
     
     def __init__(self, model_dir: str = "data/models"):
         """
-        Khởi tạo SalesForecaster
+        Initialize SalesForecaster
         
         Args:
-            model_dir: Thư mục lưu models
+            model_dir: Directory to store models
         """
         self.model_trainer = ModelTrainer(model_dir)
         self.feature_columns = [
@@ -33,24 +33,24 @@ class SalesForecaster:
     
     def prepare_forecast_data(self, df: pd.DataFrame) -> pd.DataFrame:
         """
-        Chuẩn bị dữ liệu cho forecast
+        Prepare data for forecast
         
         Args:
-            df: DataFrame dữ liệu sales trend
+            df: Sales trend DataFrame
             
         Returns:
-            DataFrame đã chuẩn bị
+            Prepared DataFrame
         """
         try:
-            logger.info("Chuẩn bị dữ liệu forecast")
+            logger.info("Preparing forecast data")
             
             df_prep = df.copy()
             
-            # Đảm bảo có cột ngày
+            # Ensure date column exists
             if 'transaction_date' in df_prep.columns:
                 df_prep['transaction_date'] = pd.to_datetime(df_prep['transaction_date'])
                 
-                # Tạo temporal features
+                # Create temporal features
                 df_prep['year'] = df_prep['transaction_date'].dt.year
                 df_prep['month'] = df_prep['transaction_date'].dt.month
                 df_prep['quarter'] = df_prep['transaction_date'].dt.quarter
@@ -65,7 +65,7 @@ class SalesForecaster:
                 df_prep['day_of_week_sin'] = np.sin(2 * np.pi * df_prep['day_of_week'] / 7)
                 df_prep['day_of_week_cos'] = np.cos(2 * np.pi * df_prep['day_of_week'] / 7)
             
-            # Xử lý missing values
+            # Handle missing values
             for col in self.feature_columns:
                 if col in df_prep.columns:
                     df_prep[col] = df_prep[col].fillna(0)
@@ -73,12 +73,12 @@ class SalesForecaster:
             if self.target_column in df_prep.columns:
                 df_prep[self.target_column] = df_prep[self.target_column].fillna(0)
             
-            logger.info(f"Chuẩn bị xong {len(df_prep)} samples")
+            logger.info(f"Prepared {len(df_prep)} samples")
             
             return df_prep
             
         except Exception as e:
-            logger.error(f"Lỗi chuẩn bị dữ liệu forecast: {str(e)}")
+            logger.error(f"Error preparing forecast data: {str(e)}")
             raise
     
     def train(
@@ -87,19 +87,19 @@ class SalesForecaster:
         algorithm: str = "random_forest"
     ) -> Dict:
         """
-        Training sales forecast model
+        Train sales forecast model
         
         Args:
-            df: DataFrame dữ liệu
-            algorithm: Thuật toán
+            df: Data DataFrame
+            algorithm: Algorithm to use
             
         Returns:
-            Dict kết quả training
+            Dict with training results
         """
         try:
             logger.info("Training sales forecast model")
             
-            # Chuẩn bị features
+            # Prepare features
             available_features = [col for col in self.feature_columns if col in df.columns]
             
             X, y = self.model_trainer.prepare_features(
@@ -110,7 +110,7 @@ class SalesForecaster:
             )
             
             if y is None:
-                raise ValueError(f"Target column '{self.target_column}' không tồn tại")
+                raise ValueError(f"Target column '{self.target_column}' does not exist")
             
             # Training
             result = self.model_trainer.train_regressor(
@@ -119,16 +119,16 @@ class SalesForecaster:
                 algorithm=algorithm
             )
             
-            # Thêm thông tin features
+            # Add feature information
             result['feature_columns'] = available_features
             result['avg_daily_sales'] = y.mean()
             
-            logger.info(f"Hoàn thành training sales forecaster: R2={result['metrics']['r2']:.4f}")
+            logger.info(f"Completed training sales forecaster: R2={result['metrics']['r2']:.4f}")
             
             return result
             
         except Exception as e:
-            logger.error(f"Lỗi training sales forecaster: {str(e)}")
+            logger.error(f"Error training sales forecaster: {str(e)}")
             raise
     
     def forecast(
@@ -137,19 +137,19 @@ class SalesForecaster:
         forecast_days: int = 30
     ) -> pd.DataFrame:
         """
-        Dự đoán doanh số cho tương lai
+        Predict sales for future dates
         
         Args:
-            df: DataFrame dữ liệu lịch sử
-            forecast_days: Số ngày cần dự đoán
+            df: Historical data DataFrame
+            forecast_days: Number of days to forecast
             
         Returns:
-            DataFrame với forecasts
+            DataFrame with forecasts
         """
         try:
-            logger.info(f"Dự đoán doanh số cho {forecast_days} ngày")
+            logger.info(f"Forecasting sales for {forecast_days} days")
             
-            # Tạo future dates
+            # Create future dates
             last_date = df['transaction_date'].max()
             future_dates = pd.date_range(
                 start=last_date + timedelta(days=1),
@@ -157,10 +157,10 @@ class SalesForecaster:
                 freq='D'
             )
             
-            # Tạo DataFrame cho future
+            # Create DataFrame for future
             df_future = pd.DataFrame({'transaction_date': future_dates})
             
-            # Tạo temporal features
+            # Create temporal features
             df_future['year'] = df_future['transaction_date'].dt.year
             df_future['month'] = df_future['transaction_date'].dt.month
             df_future['quarter'] = df_future['transaction_date'].dt.quarter
@@ -173,7 +173,7 @@ class SalesForecaster:
             df_future['day_of_week_sin'] = np.sin(2 * np.pi * df_future['day_of_week'] / 7)
             df_future['day_of_week_cos'] = np.cos(2 * np.pi * df_future['day_of_week'] / 7)
             
-            # Chuẩn bị features
+            # Prepare features
             available_features = [col for col in self.feature_columns if col in df_future.columns]
             
             X, _ = self.model_trainer.prepare_features(
@@ -188,12 +188,12 @@ class SalesForecaster:
             df_future['forecasted_revenue'] = predictions
             df_future['forecast_type'] = 'daily'
             
-            logger.info(f"Dự đoán xong {len(df_future)} ngày")
+            logger.info(f"Forecasted {len(df_future)} days")
             
             return df_future
             
         except Exception as e:
-            logger.error(f"Lỗi dự đoán sales: {str(e)}")
+            logger.error(f"Error forecasting sales: {str(e)}")
             raise
     
     def get_forecast_insights(
@@ -202,14 +202,14 @@ class SalesForecaster:
         forecast_df: pd.DataFrame
     ) -> Dict:
         """
-        Lấy insights từ forecast
+        Get insights from forecast
         
         Args:
-            historical_df: DataFrame dữ liệu lịch sử
-            forecast_df: DataFrame forecasts
+            historical_df: Historical data DataFrame
+            forecast_df: Forecast DataFrame
             
         Returns:
-            Dict insights
+            Dict with insights
         """
         try:
             insights = {
@@ -221,7 +221,7 @@ class SalesForecaster:
                 'forecast_end_date': forecast_df['transaction_date'].max().isoformat() if len(forecast_df) > 0 else None
             }
             
-            # Tính growth rate
+            # Calculate growth rate
             if insights['historical_avg_daily_sales'] > 0:
                 insights['expected_growth_rate'] = (
                     (insights['forecasted_avg_daily_sales'] - insights['historical_avg_daily_sales']) /
@@ -239,5 +239,5 @@ class SalesForecaster:
             return insights
             
         except Exception as e:
-            logger.error(f"Lỗi lấy forecast insights: {str(e)}")
+            logger.error(f"Error getting forecast insights: {str(e)}")
             raise

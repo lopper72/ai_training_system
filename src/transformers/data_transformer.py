@@ -1,6 +1,6 @@
 """
 Data Transformer Module
-Module chuyển đổi và làm sạch dữ liệu cho AI training
+Module for transforming and cleaning data for AI training
 """
 
 import json
@@ -15,29 +15,29 @@ logger = logging.getLogger(__name__)
 
 
 class DataTransformer:
-    """Class chuyển đổi và làm sạch dữ liệu"""
+    """Class for transforming and cleaning data"""
     
     def __init__(self, mapping_path: str = "config/mapping.json"):
         """
-        Khởi tạo DataTransformer
+        Initialize DataTransformer
         
         Args:
-            mapping_path: Đường dẫn file mapping
+            mapping_path: Path to mapping file
         """
         self.mapping = self._load_mapping(mapping_path)
         self.transaction_type_mapping = self._get_transaction_type_mapping()
     
     def _load_mapping(self, mapping_path: str) -> Dict:
-        """Đọc file mapping"""
+        """Read mapping file"""
         try:
             with open(mapping_path, 'r', encoding='utf-8') as f:
                 return json.load(f)
         except FileNotFoundError:
-            logger.warning(f"Không tìm thấy file mapping: {mapping_path}")
+            logger.warning(f"Mapping file not found: {mapping_path}")
             return {}
     
     def _get_transaction_type_mapping(self) -> Dict:
-        """Lấy mapping loại giao dịch"""
+        """Get transaction type mapping"""
         try:
             return self.mapping.get('database_tables', {}).get('scm_sal_main', {}).get('columns', {}).get('tag_table_usage', {}).get('mapping_values', {})
         except:
@@ -53,27 +53,31 @@ class DataTransformer:
     
     def clean_sales_main(self, df: pd.DataFrame) -> pd.DataFrame:
         """
-        Làm sạch dữ liệu scm_sal_main
+        Clean scm_sal_main data - preserves companyfn for data isolation
         
         Args:
-            df: DataFrame dữ liệu gốc
+            df: Raw data DataFrame
             
         Returns:
-            DataFrame đã làm sạch
+            Cleaned DataFrame with companyfn preserved
         """
         try:
-            logger.info(f"Bắt đầu làm sạch scm_sal_main: {len(df)} records")
+            logger.info(f"Starting to clean scm_sal_main: {len(df)} records")
             
             df_clean = df.copy()
             
-            # 1. Xử lý null values
+            # Ensure companyfn is preserved for data isolation
+            if 'companyfn' not in df_clean.columns:
+                logger.warning("companyfn column not found - data isolation may not work correctly")
+            
+            # 1. Handle null values
             df_clean['party_desc'] = df_clean['party_desc'].fillna('Unknown')
             df_clean['party_code'] = df_clean['party_code'].fillna('N/A')
             df_clean['deptunit_desc'] = df_clean['deptunit_desc'].fillna('N/A')
             df_clean['staff_code'] = df_clean['staff_code'].fillna('N/A')
             df_clean['notes_memo'] = df_clean['notes_memo'].fillna('')
             
-            # 2. Chuyển đổi kiểu dữ liệu
+            # 2. Convert data types
             df_clean['date_trans'] = pd.to_datetime(df_clean['date_trans'], errors='coerce')
             df_clean['date_due'] = pd.to_datetime(df_clean['date_due'], errors='coerce')
             
@@ -82,10 +86,10 @@ class DataTransformer:
             df_clean['salestaxpct'] = pd.to_numeric(df_clean['salestaxpct'], errors='coerce').fillna(0)
             df_clean['curr_rate_forex_f_calc'] = pd.to_numeric(df_clean['curr_rate_forex_f_calc'], errors='coerce').fillna(1)
             
-            # 3. Thêm cột transaction_type_name
+            # 3. Add transaction_type_name column
             df_clean['transaction_type_name'] = df_clean['tag_table_usage'].map(self.transaction_type_mapping).fillna('Unknown')
             
-            # 4. Thêm cột temporal features
+            # 4. Add temporal features
             df_clean['year'] = df_clean['date_trans'].dt.year
             df_clean['month'] = df_clean['date_trans'].dt.month
             df_clean['quarter'] = df_clean['date_trans'].dt.quarter
@@ -95,37 +99,37 @@ class DataTransformer:
             df_clean['is_weekend'] = df_clean['day_of_week'].isin([5, 6]).astype(int)
             df_clean['is_month_end'] = (df_clean['day_of_month'] >= 25).astype(int)
             
-            # 5. Tính toán các chỉ số
+            # 5. Calculate metrics
             df_clean['amount_local_log'] = np.log1p(df_clean['amount_local'].abs())
             
-            # 6. Xử lý outliers (loại bỏ giao dịch có giá trị quá lớn)
+            # 6. Handle outliers (remove transactions with extremely high values)
             q99 = df_clean['amount_local'].quantile(0.99)
             df_clean['is_outlier'] = (df_clean['amount_local'].abs() > q99).astype(int)
             
-            logger.info(f"Hoàn thành làm sạch scm_sal_main: {len(df_clean)} records")
+            logger.info(f"Completed cleaning scm_sal_main: {len(df_clean)} records")
             
             return df_clean
             
         except Exception as e:
-            logger.error(f"Lỗi làm sạch scm_sal_main: {str(e)}")
+            logger.error(f"Error cleaning scm_sal_main: {str(e)}")
             raise
     
     def clean_sales_data(self, df: pd.DataFrame) -> pd.DataFrame:
         """
-        Làm sạch dữ liệu scm_sal_data
+        Clean scm_sal_data data
         
         Args:
-            df: DataFrame dữ liệu gốc
+            df: Raw data DataFrame
             
         Returns:
-            DataFrame đã làm sạch
+            Cleaned DataFrame
         """
         try:
-            logger.info(f"Bắt đầu làm sạch scm_sal_data: {len(df)} records")
+            logger.info(f"Starting to clean scm_sal_data: {len(df)} records")
             
             df_clean = df.copy()
             
-            # 1. Xử lý null values
+            # 1. Handle null values
             df_clean['stkcode_desc'] = df_clean['stkcode_desc'].fillna('Unknown Product')
             df_clean['stkcode_code'] = df_clean['stkcode_code'].fillna('N/A')
             df_clean['brand_desc'] = df_clean['brand_desc'].fillna('No Brand')
@@ -133,7 +137,7 @@ class DataTransformer:
             df_clean['stkvendor_desc'] = df_clean['stkvendor_desc'].fillna('No Vendor')
             df_clean['notes_memo'] = df_clean['notes_memo'].fillna('')
             
-            # 2. Chuyển đổi kiểu dữ liệu
+            # 2. Convert data types
             df_clean['date_trans'] = pd.to_datetime(df_clean['date_trans'], errors='coerce')
             
             numeric_cols = [
@@ -148,33 +152,33 @@ class DataTransformer:
                 if col in df_clean.columns:
                     df_clean[col] = pd.to_numeric(df_clean[col], errors='coerce').fillna(0)
             
-            # 3. Tính toán các chỉ số
+            # 3. Calculate metrics
             df_clean['line_total'] = df_clean['qnty_total'] * df_clean['price_unitrate_local']
             df_clean['discount_amount'] = df_clean['line_total'] * df_clean['discount_pct'] / 100
             df_clean['net_amount'] = df_clean['line_total'] - df_clean['discount_amount']
             
-            # 4. Thêm cột temporal features
+            # 4. Add temporal features
             df_clean['year'] = df_clean['date_trans'].dt.year
             df_clean['month'] = df_clean['date_trans'].dt.month
             df_clean['quarter'] = df_clean['date_trans'].dt.quarter
             
-            # 5. Tạo product identifier
+            # 5. Create product identifier
             df_clean['product_id'] = df_clean['stkcode_code'] + '_' + df_clean['stkcode_unique'].astype(str)
             
-            logger.info(f"Hoàn thành làm sạch scm_sal_data: {len(df_clean)} records")
+            logger.info(f"Completed cleaning scm_sal_data: {len(df_clean)} records")
             
             return df_clean
             
         except Exception as e:
-            logger.error(f"Lỗi làm sạch scm_sal_data: {str(e)}")
+            logger.error(f"Error cleaning scm_sal_data: {str(e)}")
             raise
     
     def transform_customer_analysis(self, df: pd.DataFrame) -> pd.DataFrame:
         """
-        Chuyển đổi dữ liệu cho phân tích khách hàng
+        Transform data for customer analysis
         """
         try:
-            logger.info("Chuyển đổi dữ liệu phân tích khách hàng")
+            logger.info("Transforming customer analysis data")
             
             df_clean = df.copy()
             
@@ -204,15 +208,15 @@ class DataTransformer:
             return df_clean
             
         except Exception as e:
-            logger.error(f"Lỗi chuyển đổi dữ liệu phân tích khách hàng: {str(e)}")
+            logger.error(f"Error transforming customer analysis data: {str(e)}")
             raise
     
     def transform_product_analysis(self, df: pd.DataFrame) -> pd.DataFrame:
         """
-        Chuyển đổi dữ liệu cho phân tích sản phẩm
+        Transform data for product analysis
         """
         try:
-            logger.info("Chuyển đổi dữ liệu phân tích sản phẩm")
+            logger.info("Transforming product analysis data")
             
             df_clean = df.copy()
             
@@ -242,15 +246,15 @@ class DataTransformer:
             return df_clean
             
         except Exception as e:
-            logger.error(f"Lỗi chuyển đổi dữ liệu phân tích sản phẩm: {str(e)}")
+            logger.error(f"Error transforming product analysis data: {str(e)}")
             raise
     
     def transform_customer_retention(self, df: pd.DataFrame) -> pd.DataFrame:
         """
-        Chuyển đổi dữ liệu cho phân tích giữ chân khách hàng
+        Transform data for customer retention analysis
         """
         try:
-            logger.info("Chuyển đổi dữ liệu phân tích giữ chân khách hàng")
+            logger.info("Transforming customer retention analysis data")
             
             df_clean = df.copy()
             
@@ -307,24 +311,24 @@ class DataTransformer:
             return df_clean
             
         except Exception as e:
-            logger.error(f"Lỗi chuyển đổi dữ liệu retention: {str(e)}")
+            logger.error(f"Error transforming retention data: {str(e)}")
             raise
     
     def transform_sales_trend(self, df: pd.DataFrame) -> pd.DataFrame:
         """
-        Chuyển đổi dữ liệu cho phân tích xu hướng bán hàng
+        Transform data for sales trend analysis
         """
         try:
-            logger.info("Chuyển đổi dữ liệu xu hướng bán hàng")
+            logger.info("Transforming sales trend data")
             
             df_clean = df.copy()
             
-            # Xử lý null values
+            # Handle null values
             df_clean['business_unit_name'] = df_clean['business_unit_name'].fillna('Unknown')
             df_clean['salesperson'] = df_clean['salesperson'].fillna('Unknown')
             df_clean['transaction_type'] = df_clean['transaction_type'].fillna('Unknown')
             
-            # Chuyển đổi kiểu dữ liệu
+            # Convert data types
             df_clean['transaction_date'] = pd.to_datetime(df_clean['transaction_date'], errors='coerce')
             
             numeric_cols = ['total_transactions', 'total_revenue', 'avg_transaction_value', 'unique_customers']
@@ -332,7 +336,7 @@ class DataTransformer:
                 if col in df_clean.columns:
                     df_clean[col] = pd.to_numeric(df_clean[col], errors='coerce').fillna(0)
             
-            # Thêm temporal features
+            # Add temporal features
             df_clean['year'] = df_clean['transaction_date'].dt.year
             df_clean['month'] = df_clean['transaction_date'].dt.month
             df_clean['quarter'] = df_clean['transaction_date'].dt.quarter
@@ -350,11 +354,11 @@ class DataTransformer:
             return df_clean
             
         except Exception as e:
-            logger.error(f"Lỗi chuyển đổi dữ liệu xu hướng: {str(e)}")
+            logger.error(f"Error transforming trend data: {str(e)}")
             raise
     
     def save_transformed_data(self, df: pd.DataFrame, output_path: str, format: str = 'parquet'):
-        """Lưu dữ liệu đã chuyển đổi"""
+        """Save transformed data"""
         try:
             Path(output_path).parent.mkdir(parents=True, exist_ok=True)
             
@@ -365,16 +369,16 @@ class DataTransformer:
             elif format == 'json':
                 df.to_json(output_path, orient='records', force_ascii=False, indent=2)
             else:
-                raise ValueError(f"Định dạng không hỗ trợ: {format}")
+                raise ValueError(f"Unsupported format: {format}")
             
-            logger.info(f"Đã lưu dữ liệu: {output_path} ({len(df)} records)")
+            logger.info(f"Data saved: {output_path} ({len(df)} records)")
             
         except Exception as e:
-            logger.error(f"Lỗi lưu dữ liệu: {str(e)}")
+            logger.error(f"Error saving data: {str(e)}")
             raise
     
     def load_transformed_data(self, input_path: str, format: Optional[str] = None) -> pd.DataFrame:
-        """Đọc dữ liệu đã chuyển đổi"""
+        """Load transformed data"""
         try:
             if format is None:
                 format = Path(input_path).suffix.lstrip('.')
@@ -386,12 +390,12 @@ class DataTransformer:
             elif format == 'json':
                 df = pd.read_json(input_path, orient='records')
             else:
-                raise ValueError(f"Định dạng không hỗ trợ: {format}")
+                raise ValueError(f"Unsupported format: {format}")
             
-            logger.info(f"Đã đọc dữ liệu: {input_path} ({len(df)} records)")
+            logger.info(f"Data loaded: {input_path} ({len(df)} records)")
             
             return df
             
         except Exception as e:
-            logger.error(f"Lỗi đọc dữ liệu: {str(e)}")
+            logger.error(f"Error loading data: {str(e)}")
             raise

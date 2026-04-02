@@ -1,6 +1,6 @@
 """
 AI Training System - Main Entry Point
-Hệ thống AI training để phân tích dữ liệu bán hàng
+AI training system for sales data analysis
 """
 
 import logging
@@ -8,7 +8,7 @@ import argparse
 import sys
 from datetime import datetime
 
-# Cấu hình logging
+# Logging configuration
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
@@ -17,11 +17,11 @@ logger = logging.getLogger(__name__)
 
 
 def run_extraction(args):
-    """Chạy data extraction"""
+    """Run data extraction"""
     from src.extractors.sales_extractor import SalesExtractor
     from src.transformers.data_transformer import DataTransformer
     
-    logger.info("Bắt đầu data extraction")
+    logger.info("Starting data extraction")
     
     extractor = SalesExtractor()
     transformer = DataTransformer()
@@ -43,17 +43,17 @@ def run_extraction(args):
     
     extractor.close()
     
-    logger.info(f"Hoàn thành extraction: {len(df_main)} main, {len(df_data)} detail records")
+    logger.info(f"Extraction completed: {len(df_main)} main, {len(df_data)} detail records")
 
 
 def run_training(args):
-    """Chạy model training"""
+    """Run model training"""
     from src.extractors.sales_extractor import SalesExtractor
     from src.transformers.data_transformer import DataTransformer
     from src.trainers.churn_predictor import ChurnPredictor
     from src.trainers.sales_forecaster import SalesForecaster
     
-    logger.info("Bắt đầu model training")
+    logger.info("Starting model training")
     
     extractor = SalesExtractor()
     transformer = DataTransformer()
@@ -81,22 +81,22 @@ def run_training(args):
         logger.info(f"Forecast model: R2={result['metrics']['r2']:.4f}")
     
     extractor.close()
-    logger.info("Hoàn thành training")
+    logger.info("Training completed")
 
 
 def run_query(args):
-    """Chạy AI query"""
+    """Run AI query"""
     from src.query.ai_query_interface import AIQueryInterface
     
-    logger.info("Bắt đầu AI query")
+    logger.info("Starting AI query")
     
     interface = AIQueryInterface()
     
     if args.interactive:
         # Interactive mode
         print("\n=== AI Query Interface ===")
-        print("Nhập câu hỏi về dữ liệu bán hàng (gõ 'quit' để thoát)")
-        print("Ví dụ: 'Top khách hàng mua nhiều nhất', 'Xu hướng doanh số theo tháng'")
+        print("Enter questions about sales data (type 'quit' to exit)")
+        print("Examples: 'Top customers by purchases', 'Monthly sales trends'")
         print()
         
         while True:
@@ -114,27 +114,27 @@ def run_query(args):
             except KeyboardInterrupt:
                 break
             except Exception as e:
-                print(f"Lỗi: {str(e)}")
+                print(f"Error: {str(e)}")
     else:
         # Single query
-        query = args.query or "Tổng quan doanh số"
+        query = args.query or "Sales overview"
         result = interface.process_query(query)
         response = interface.format_response(result)
         print(response)
 
 
 def run_scheduled(args):
-    """Chạy scheduled training"""
+    """Run scheduled training"""
     from scripts.scheduled_training import main as scheduled_main
     
-    logger.info("Khởi động scheduled training service")
+    logger.info("Starting scheduled training service")
     scheduled_main()
 
 
 def main():
     """Main entry point"""
     parser = argparse.ArgumentParser(
-        description='AI Training System - Hệ thống phân tích dữ liệu bán hàng'
+        description='AI Training System - Sales Data Analysis System'
     )
     
     subparsers = parser.add_subparsers(dest='command', help='Commands')
@@ -178,7 +178,7 @@ def main():
             parser.print_help()
     
     except Exception as e:
-        logger.error(f"Lỗi: {str(e)}")
+        logger.error(f"Error: {str(e)}")
         sys.exit(1)
 
 

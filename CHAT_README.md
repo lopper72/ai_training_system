@@ -1,170 +1,168 @@
-# AI Chat Interface - Hướng dẫn sử dụng
+# AI Chat Interface - User Guide
 
-## 🤖 Giới thiệu
+## 🤖 Introduction
 
-Đây là giao diện chat AI sử dụng Google Gemini API để người dùng có thể trò chuyện và nhận hỗ trợ về:
-- Phân tích dữ liệu bán hàng
-- Giải thích các khái niệm ML/AI
-- Hỗ trợ coding và debug
-- Tư vấn cải thiện doanh số
+This is an AI chat interface using Google Gemini API that allows users to chat and receive support for:
+- Sales data analysis
+- ML/AI concepts explanation
+- Coding and debugging support
+- Sales improvement consulting
 
-## 📋 Yêu cầu
+## 📋 Requirements
 
 1. **Python 3.7+**
-2. **Google Gemini API Key** - Đăng ký tại: https://makersuite.google.com/app/apikey
-3. **Thư viện Python**: `google-generativeai`
+2. **Google Gemini API Key** - Register at: https://makersuite.google.com/app/apikey
+3. **Python Library**: `google-generativeai`
 
-## 🚀 Cài đặt
+## 🚀 Installation
 
-### Bước 1: Cài đặt thư viện
+### Step 1: Install library
 
 ```bash
 pip install google-generativeai
 ```
 
-Hoặc thêm vào `requirements.txt`:
+Or add to `requirements.txt`:
 ```
 google-generativeai>=0.3.0
 ```
 
-### Bước 2: Lấy API Key
+### Step 2: Get API Key
 
-1. Truy cập: https://makersuite.google.com/app/apikey
-2. Đăng nhập bằng tài khoản Google
-3. Tạo API Key mới
+1. Visit: https://makersuite.google.com/app/apikey
+2. Sign in with Google account
+3. Create new API Key
 4. Copy API Key
 
-### Bước 3: Cấu hình API Key
+### Step 3: Configure API Key
 
-**Cách 1: Sử dụng Environment Variable (Khuyến nghị)**
+**Method 1: Use Environment Variable (Recommended)**
 
-Windows:
-```cmd
-set GEMINI_API_KEY=your_api_key_here
-```
-
-Linux/Mac:
 ```bash
+# Windows
+set GEMINI_API_KEY=your_api_key_here
+
+# Linux/Mac
 export GEMINI_API_KEY=your_api_key_here
 ```
 
-**Cách 2: Chỉnh sửa file gemini_server.py**
+**Method 2: Edit gemini_server.py file**
 
-Mở file `gemini_server.py` và thay đổi dòng:
+Open `gemini_server.py` and change the line:
 ```python
-GEMINI_API_KEY = os.getenv('GEMINI_API_KEY', 'YOUR_API_KEY_HERE')
+GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY', 'your_api_key_here')
 ```
 
-Thành:
+To:
 ```python
-GEMINI_API_KEY = 'your_actual_api_key_here'
+GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY', 'AIzaSy...your_actual_key...')
 ```
 
-## 🎯 Sử dụng
+## 🎯 Usage
 
-### Bước 1: Khởi động Server
+### Step 1: Start Server
 
 ```bash
 python gemini_server.py
 ```
 
-Server sẽ chạy trên port 9001.
+Server will run on port 9001.
 
-### Bước 2: Mở giao diện chat
+### Step 2: Open chat interface
 
-Mở browser và truy cập: **http://localhost:9001**
+Open browser and access: **http://localhost:9001**
 
-### Bước 3: Bắt đầu chat
+### Step 3: Start chatting
 
-Nhập câu hỏi và nhấn "Gửi" hoặc nhấn Enter.
+Enter your question and press "Send" or Enter.
 
-## 💡 Tính năng
+## 💡 Features
 
-### Giao diện
-- ✅ Thiết kế đẹp, responsive
-- ✅ Hiển thị tin nhắn theo thời gian thực
-- ✅ Typing indicator khi AI đang suy nghĩ
-- ✅ Quick actions cho các câu hỏi phổ biến
-- ✅ Xóa lịch sử chat
+### Interface
+- ✅ Beautiful, responsive design
+- ✅ Real-time message display
+- ✅ Typing indicator when AI is thinking
+- ✅ Quick actions for common questions
+- ✅ Clear chat history
 - ✅ Error handling
 
 ### Quick Actions
-- 📊 **Churn Prediction** - Giải thích về dự đoán khách hàng rời bỏ
-- 💰 **Cải thiện doanh số** - Tư vấn tăng doanh thu
-- 👥 **Phân tích KH** - Hướng dẫn phân tích dữ liệu khách hàng
-- 🌲 **Random Forest** - Giải thích thuật toán Random Forest
+- 📊 **Churn Prediction** - Explain customer churn prediction
+- 💰 **Improve Sales** - Revenue growth consulting
+- 👥 **Customer Analysis** - Guide to customer data analysis
+- 🌲 **Random Forest** - Explain Random Forest algorithm
 
-### Ví dụ câu hỏi
-- "Giải thích về churn prediction là gì?"
-- "Làm thế nào để cải thiện doanh số bán hàng?"
-- "Phân tích dữ liệu khách hàng như thế nào?"
-- "Random Forest hoạt động ra sao?"
-- "Tôi có lỗi Python, giúp tôi debug"
-- "Xu hướng kinh doanh năm nay thế nào?"
+### Example Questions
+- "Explain what churn prediction is?"
+- "How to improve sales revenue?"
+- "How to analyze customer data?"
+- "How does Random Forest work?"
+- "I have Python error, help me debug"
+- "What's the business trend this year?"
 
 ## 🔧 Troubleshooting
 
-### Lỗi: "Cannot connect to server"
-- Đảm bảo server đang chạy: `python gemini_server.py`
-- Kiểm tra port 9001 có bị chiếm không
+### Error: "Cannot connect to server"
+- Ensure server is running: `python gemini_server.py`
+- Check if port 9001 is occupied
 
-### Lỗi: "API Key not valid"
-- Kiểm tra API Key đã được set đúng chưa
-- Đảm bảo API Key còn hạn sử dụng
-- Thử tạo API Key mới
+### Error: "API Key not valid"
+- Check if API Key is set correctly
+- Ensure API Key is still valid
+- Try creating new API Key
 
-### Lỗi: "Module not found: google.generativeai"
+### Error: "Module not found: google.generativeai"
 ```bash
 pip install google-generativeai
 ```
 
-### Lỗi: Port already in use
-Thay đổi port trong file `gemini_server.py`:
+### Error: Port already in use
+Change port in `gemini_server.py`:
 ```python
-PORT = 9002  # Thay đổi port khác
+PORT = 9002  # Change to different port
 ```
 
-## 📝 Lưu ý
+## 📝 Notes
 
-- API Key là miễn phí nhưng có giới hạn số lượng request
-- Mỗi câu hỏi sẽ消耗 một lượng API quota
-- Nên sử dụng Environment Variable để bảo mật API Key
-- Server chỉ chạy trên localhost, không truy cập từ mạng khác
+- API Key is free but has request limits
+- Each question consumes API quota
+- Should use Environment Variable to secure API Key
+- Server only runs on localhost, cannot access from other networks
 
-## 🎨 Tùy chỉnh
+## 🎨 Customization
 
-### Thay đổi màu sắc
-Chỉnh sửa CSS trong file `gemini_chat.html`:
+### Change colors
+Edit CSS in `gemini_chat.html`:
 ```css
 background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
 ```
 
-### Thêm quick actions
-Thêm button mới trong HTML:
+### Add quick actions
+Add new button in HTML:
 ```html
-<button class="quick-btn" onclick="sendQuickMessage('Câu hỏi của bạn')">🎯 Tiêu đề</button>
+<button class="quick-btn" onclick="sendQuickMessage('Your question')">🎯 Title</button>
 ```
 
-### Thay đổi system prompt
-Chỉnh sửa trong file `gemini_server.py`:
+### Change system prompt
+Edit in `gemini_server.py`:
 ```python
-system_prompt = """Prompt tùy chỉnh của bạn"""
+system_prompt = """Your custom prompt"""
 ```
 
-## 📞 Hỗ trợ
+## 📞 Support
 
-Nếu gặp vấn đề, vui lòng:
-1. Kiểm tra lỗi trong console browser (F12)
-2. Kiểm tra lỗi trong terminal chạy server
-3. Đảm bảo tất cả dependencies đã được cài đặt
+If you encounter issues, please:
+1. Check error in browser console (F12)
+2. Check error in server terminal
+3. Ensure all dependencies are installed
 
-## 🔄 Cập nhật
+## 🔄 Update
 
-Để cập nhật thư viện Gemini:
+To update Gemini library:
 ```bash
 pip install --upgrade google-generativeai
 ```
 
 ---
 
-**Chúc bạn sử dụng vui vẻ! 🚀**
+**Have fun using it! 🚀**

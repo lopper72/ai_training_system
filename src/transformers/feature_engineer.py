@@ -1,6 +1,6 @@
 """
 Feature Engineer Module
-Module tạo features cho ML models
+Module for creating features for ML models
 """
 
 import logging
@@ -13,27 +13,27 @@ logger = logging.getLogger(__name__)
 
 
 class FeatureEngineer:
-    """Class tạo features cho ML"""
+    """Class for creating features for ML"""
     
     def __init__(self):
-        """Khởi tạo FeatureEngineer"""
+        """Initialize FeatureEngineer"""
         pass
     
     def create_rfm_features(self, df: pd.DataFrame, customer_col: str = 'customer_id') -> pd.DataFrame:
         """
-        Tạo features RFM (Recency, Frequency, Monetary)
+        Create RFM features (Recency, Frequency, Monetary)
         
         Args:
-            df: DataFrame dữ liệu giao dịch
-            customer_col: Tên cột customer ID
+            df: Transaction data DataFrame
+            customer_col: Customer ID column name
             
         Returns:
-            DataFrame với RFM features
+            DataFrame with RFM features
         """
         try:
-            logger.info("Tạo RFM features")
+            logger.info("Creating RFM features")
             
-            # Tính ngày hiện tại
+            # Calculate current date
             current_date = df['transaction_date'].max()
             
             # Group by customer
@@ -45,20 +45,20 @@ class FeatureEngineer:
             
             rfm.columns = [customer_col, 'recency', 'frequency', 'monetary']
             
-            # Tính RFM scores
+            # Calculate RFM scores
             rfm['recency_score'] = pd.qcut(rfm['recency'], q=5, labels=[5, 4, 3, 2, 1], duplicates='drop')
             rfm['frequency_score'] = pd.qcut(rfm['frequency'].rank(method='first'), q=5, labels=[1, 2, 3, 4, 5], duplicates='drop')
             rfm['monetary_score'] = pd.qcut(rfm['monetary'].rank(method='first'), q=5, labels=[1, 2, 3, 4, 5], duplicates='drop')
             
-            # Chuyển sang numeric
+            # Convert to numeric
             rfm['recency_score'] = pd.to_numeric(rfm['recency_score'], errors='coerce')
             rfm['frequency_score'] = pd.to_numeric(rfm['frequency_score'], errors='coerce')
             rfm['monetary_score'] = pd.to_numeric(rfm['monetary_score'], errors='coerce')
             
-            # Tính RFM tổng hợp
+            # Calculate combined RFM score
             rfm['rfm_score'] = (rfm['recency_score'] + rfm['frequency_score'] + rfm['monetary_score']) / 3
             
-            # Phân khúc khách hàng
+            # Customer segmentation
             rfm['customer_segment'] = pd.cut(
                 rfm['rfm_score'],
                 bins=[0, 2, 3, 4, 5],
@@ -68,29 +68,29 @@ class FeatureEngineer:
             return rfm
             
         except Exception as e:
-            logger.error(f"Lỗi tạo RFM features: {str(e)}")
+            logger.error(f"Error creating RFM features: {str(e)}")
             raise
     
     def create_temporal_features(self, df: pd.DataFrame, date_col: str = 'transaction_date') -> pd.DataFrame:
         """
-        Tạo temporal features từ ngày giao dịch
+        Create temporal features from transaction date
         
         Args:
-            df: DataFrame dữ liệu
-            date_col: Tên cột ngày
+            df: Data DataFrame
+            date_col: Date column name
             
         Returns:
-            DataFrame với temporal features
+            DataFrame with temporal features
         """
         try:
-            logger.info("Tạo temporal features")
+            logger.info("Creating temporal features")
             
             df_features = df.copy()
             
-            # Đảm bảo cột ngày là datetime
+            # Ensure date column is datetime
             df_features[date_col] = pd.to_datetime(df_features[date_col], errors='coerce')
             
-            # Tạo các features
+            # Create features
             df_features['year'] = df_features[date_col].dt.year
             df_features['month'] = df_features[date_col].dt.month
             df_features['quarter'] = df_features[date_col].dt.quarter
@@ -106,7 +106,7 @@ class FeatureEngineer:
             df_features['is_year_start'] = (df_features[date_col].dt.is_year_start).astype(int)
             df_features['is_year_end'] = (df_features[date_col].dt.is_year_end).astype(int)
             
-            # Tạo cyclical features (cho ML models)
+            # Create cyclical features (for ML models)
             df_features['month_sin'] = np.sin(2 * np.pi * df_features['month'] / 12)
             df_features['month_cos'] = np.cos(2 * np.pi * df_features['month'] / 12)
             df_features['day_of_week_sin'] = np.sin(2 * np.pi * df_features['day_of_week'] / 7)
@@ -115,21 +115,21 @@ class FeatureEngineer:
             return df_features
             
         except Exception as e:
-            logger.error(f"Lỗi tạo temporal features: {str(e)}")
+            logger.error(f"Error creating temporal features: {str(e)}")
             raise
     
     def create_product_features(self, df: pd.DataFrame) -> pd.DataFrame:
         """
-        Tạo features cho sản phẩm
+        Create product features
         
         Args:
-            df: DataFrame dữ liệu sản phẩm
+            df: Product data DataFrame
             
         Returns:
-            DataFrame với product features
+            DataFrame with product features
         """
         try:
-            logger.info("Tạo product features")
+            logger.info("Creating product features")
             
             # Group by product
             product_features = df.groupby('product_code').agg({
@@ -154,31 +154,31 @@ class FeatureEngineer:
                 'total_transactions'
             ]
             
-            # Tính sales velocity (doanh số/ngày)
+            # Calculate sales velocity (revenue/day)
             date_range = (df['transaction_date'].max() - df['transaction_date'].min()).days
             product_features['sales_velocity'] = product_features['total_revenue'] / max(date_range, 1)
             
-            # Tính customer reach
+            # Calculate customer reach
             product_features['customer_reach'] = product_features['total_unique_customers'] / product_features['total_transactions']
             
             return product_features
             
         except Exception as e:
-            logger.error(f"Lỗi tạo product features: {str(e)}")
+            logger.error(f"Error creating product features: {str(e)}")
             raise
     
     def create_customer_features(self, df: pd.DataFrame) -> pd.DataFrame:
         """
-        Tạo features cho khách hàng
+        Create customer features
         
         Args:
-            df: DataFrame dữ liệu khách hàng
+            df: Customer data DataFrame
             
         Returns:
-            DataFrame với customer features
+            DataFrame with customer features
         """
         try:
-            logger.info("Tạo customer features")
+            logger.info("Creating customer features")
             
             # Group by customer
             customer_features = df.groupby('customer_id').agg({
@@ -206,24 +206,24 @@ class FeatureEngineer:
                 'unique_brands'
             ]
             
-            # Tính customer lifetime
+            # Calculate customer lifetime
             customer_features['customer_lifetime_days'] = (
                 customer_features['last_purchase_date'] - customer_features['first_purchase_date']
             ).dt.days
             
-            # Tính purchase frequency
+            # Calculate purchase frequency
             customer_features['purchase_frequency'] = (
                 customer_features['total_purchase_days'] / 
                 customer_features['customer_lifetime_days'].replace(0, 1)
             )
             
-            # Tính days since last purchase
+            # Calculate days since last purchase
             current_date = df['transaction_date'].max()
             customer_features['days_since_last_purchase'] = (
                 current_date - customer_features['last_purchase_date']
             ).dt.days
             
-            # Tính churn risk
+            # Calculate churn risk
             customer_features['churn_risk'] = pd.cut(
                 customer_features['days_since_last_purchase'],
                 bins=[0, 30, 60, 90, float('inf')],
@@ -233,7 +233,7 @@ class FeatureEngineer:
             return customer_features
             
         except Exception as e:
-            logger.error(f"Lỗi tạo customer features: {str(e)}")
+            logger.error(f"Error creating customer features: {str(e)}")
             raise
     
     def create_lag_features(
@@ -245,20 +245,20 @@ class FeatureEngineer:
         lags: List[int] = [1, 7, 30]
     ) -> pd.DataFrame:
         """
-        Tạo lag features cho time series
+        Create lag features for time series
         
         Args:
-            df: DataFrame dữ liệu
-            value_col: Tên cột giá trị
-            date_col: Tên cột ngày
-            group_col: Tên cột group (nếu có)
-            lags: Danh sách các lag periods
+            df: Data DataFrame
+            value_col: Value column name
+            date_col: Date column name
+            group_col: Group column name (if any)
+            lags: List of lag periods
             
         Returns:
-            DataFrame với lag features
+            DataFrame with lag features
         """
         try:
-            logger.info(f"Tạo lag features cho {value_col}")
+            logger.info(f"Creating lag features for {value_col}")
             
             df_features = df.copy()
             df_features = df_features.sort_values(date_col)
@@ -273,7 +273,7 @@ class FeatureEngineer:
             return df_features
             
         except Exception as e:
-            logger.error(f"Lỗi tạo lag features: {str(e)}")
+            logger.error(f"Error creating lag features: {str(e)}")
             raise
     
     def create_rolling_features(
@@ -285,20 +285,20 @@ class FeatureEngineer:
         windows: List[int] = [7, 30, 90]
     ) -> pd.DataFrame:
         """
-        Tạo rolling features cho time series
+        Create rolling features for time series
         
         Args:
-            df: DataFrame dữ liệu
-            value_col: Tên cột giá trị
-            date_col: Tên cột ngày
-            group_col: Tên cột group (nếu có)
-            windows: Danh sách các window sizes
+            df: Data DataFrame
+            value_col: Value column name
+            date_col: Date column name
+            group_col: Group column name (if any)
+            windows: List of window sizes
             
         Returns:
-            DataFrame với rolling features
+            DataFrame with rolling features
         """
         try:
-            logger.info(f"Tạo rolling features cho {value_col}")
+            logger.info(f"Creating rolling features for {value_col}")
             
             df_features = df.copy()
             df_features = df_features.sort_values(date_col)
@@ -318,7 +318,7 @@ class FeatureEngineer:
             return df_features
             
         except Exception as e:
-            logger.error(f"Lỗi tạo rolling features: {str(e)}")
+            logger.error(f"Error creating rolling features: {str(e)}")
             raise
     
     def create_interaction_features(
@@ -327,17 +327,17 @@ class FeatureEngineer:
         feature_pairs: List[tuple]
     ) -> pd.DataFrame:
         """
-        Tạo interaction features giữa các features
+        Create interaction features between features
         
         Args:
-            df: DataFrame dữ liệu
-            feature_pairs: Danh sách các cặp features [(feat1, feat2), ...]
+            df: Data DataFrame
+            feature_pairs: List of feature pairs [(feat1, feat2), ...]
             
         Returns:
-            DataFrame với interaction features
+            DataFrame with interaction features
         """
         try:
-            logger.info("Tạo interaction features")
+            logger.info("Creating interaction features")
             
             df_features = df.copy()
             
@@ -346,11 +346,11 @@ class FeatureEngineer:
                     # Multiplication interaction
                     df_features[f'{feat1}_x_{feat2}'] = df_features[feat1] * df_features[feat2]
                     
-                    # Ratio interaction (tránh chia cho 0)
+                    # Ratio interaction (avoid division by zero)
                     df_features[f'{feat1}_div_{feat2}'] = df_features[feat1] / df_features[feat2].replace(0, np.nan)
             
             return df_features
             
         except Exception as e:
-            logger.error(f"Lỗi tạo interaction features: {str(e)}")
+            logger.error(f"Error creating interaction features: {str(e)}")
             raise
