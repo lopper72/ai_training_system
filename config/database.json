@@ -7,7 +7,7 @@
     "port": 5432,
     "database": "v57udemo2011",
     "username": "postgres",
-    "password": "123123",
+    "password": "123",
     "schema": "public",
     "pool_size": 10,
     "max_overflow": 20,

@@ -178,22 +178,18 @@ def create_isolated_revenue_report(df_main, df_data):
     This is isolated from general trends to provide clean, filtered data.
     """
     try:
-        df = df_data.merge(df_main, on='uniquenum_pri', how='left')
+        # ✅ DÙNG HÀM ĐÚNG extract_date_revenue_data TỪ DATABASE KHÔNG CẦN GROUP BY LẠI
+        from src.extractors.sales_extractor import SalesExtractor
+        extractor = SalesExtractor()
+        isolated_revenue = extractor.extract_date_revenue_data(companyfn='p11011004464072155')
+        extractor.close()
         
-        df['date_trans_x'] = pd.to_datetime(df['date_trans_x'])
-        df['year'] = df['date_trans_x'].dt.year
-        df['month'] = df['date_trans_x'].dt.month
-        
-        isolated_revenue = df[df['amount_local_x'] > 0].groupby(['year', 'month']).agg({
-            'amount_local_x': 'sum',
-            'uniquenum_pri': 'nunique', # Đếm số hóa đơn duy nhất
-            'party_code_x': 'nunique'   # Đếm số khách hàng trong tháng
-        }).reset_index()
-        
-        isolated_revenue.columns = [
-            'report_year', 'report_month', 'total_revenue', 
-            'transaction_count', 'active_customers'
-        ]
+        isolated_revenue = isolated_revenue.rename(columns={
+            'year': 'report_year',
+            'month': 'report_month',
+            'amt_local': 'total_revenue',
+            'num_transactions': 'transaction_count'
+        })
         
         output_path = 'data/processed/revenue_report_by_date.parquet'
         isolated_revenue.to_parquet(output_path, index=False)

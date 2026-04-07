@@ -25,7 +25,8 @@ class AIQueryInterface:
             companyfn: Company code for data isolation (unique per company)
         """
         self.data_path = data_path
-        self.companyfn = companyfn
+        # ✅ DEFAULT COMPANY FN - DÙNG NẾU KHÔNG TRUYỀN
+        self.companyfn = companyfn or "p11011004464072155"
         self.data_cache = {}
         self.query_history = []
     
@@ -154,7 +155,9 @@ class AIQueryInterface:
         
         targets = []
 
-        if re.search(r'\d{1,2}/\d{4}', query) or any(kw in query for kw in revenue_report_keywords):
+        # Match both MM/YYYY format AND text month names (February 2010, Feb 2010, 2 2010)
+        date_pattern = r'(\d{1,2}/\d{4})|(\d{1,2}\.\d{4})|(\d{1,2}-\d{4})|(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:tember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\s*\d{4}'
+        if re.search(date_pattern, query, re.IGNORECASE) or any(kw in query for kw in revenue_report_keywords):
             targets.append('revenue_report_by_date')    
 
         if any(kw in query for kw in customer_keywords):
@@ -445,13 +448,37 @@ class AIQueryInterface:
         """
         try:            
             # 1. Trích xuất Tháng và Năm từ query
-            match = re.search(r'(\d{1,2})/(\d{4})', query)
-            if not match:
-                return {'error': 'No valid date format (MM/YYYY) found in query.'}
-                
-            # Chuyển tháng về kiểu INT để khớp với dữ liệu thực tế [10, 9]
-            month_target = int(match.group(1))
-            year_target = int(match.group(2))
+            # Match cả format số và text
+            month_map = {
+                'jan':1, 'january':1,
+                'feb':2, 'february':2,
+                'mar':3, 'march':3,
+                'apr':4, 'april':4,
+                'may':5,
+                'jun':6, 'june':6,
+                'jul':7, 'july':7,
+                'aug':8, 'august':8,
+                'sep':9, 'september':9,
+                'oct':10, 'october':10,
+                'nov':11, 'november':11,
+                'dec':12, 'december':12
+            }
+            
+            # Thử match format số trước - HỖ TRỢ TẤT CẢ DẤU NGĂN CÁCH
+            match = re.search(r'(\d{1,2})[./-](\d{4})', query)
+            
+            if match:
+                month_target = int(match.group(1))
+                year_target = int(match.group(2))
+            else:
+                # Thử match text month
+                month_match = re.search(r'(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:tember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\s*(\d{4})', query, re.IGNORECASE)
+                if month_match:
+                    month_text = month_match.group(1).lower()
+                    month_target = month_map[month_text]
+                    year_target = int(month_match.group(2))
+                else:
+                    return {'error': 'No valid date format (MM/YYYY or Month YYYY) found in query.'}
             
             # 2. Load dữ liệu
             df = self.load_data('revenue_report_by_date')
@@ -469,24 +496,24 @@ class AIQueryInterface:
             }
 
             # 3. Lọc dữ liệu theo tháng và năm
-            if 'month' in df.columns and 'year' in df.columns:
-                mask = (df['month'].astype(float).astype(int) == month_target) & \
-                   (df['year'].astype(float).astype(int) == year_target)
+            if 'report_month' in df.columns and 'report_year' in df.columns:
+                mask = (df['report_month'].astype(float).astype(int) == month_target) & \
+                   (df['report_year'].astype(float).astype(int) == year_target)
                 
                 target_data = df[mask]
                 
                 if not target_data.empty:
                     row = target_data.iloc[0]                    
-                    rev = float(row.get('amt_local', 0))
-                    trans = int(row.get('num_transactions', 0))
+                    rev = float(row.get('total_revenue', 0))
+                    trans = int(row.get('transaction_count', 0))
                     growth = 0.0
                     prev_month = 12 if month_target == 1 else month_target - 1
                     prev_year = year_target - 1 if month_target == 1 else year_target
-                    prev_mask = (df['month'].astype(float).astype(int) == prev_month) & \
-                            (df['year'].astype(float).astype(int) == prev_year)
+                    prev_mask = (df['report_month'].astype(float).astype(int) == prev_month) & \
+                            (df['report_year'].astype(float).astype(int) == prev_year)
                     prev_data = df[prev_mask]
                     if not prev_data.empty:
-                        prev_rev = float(prev_data.iloc[0].get('amt_local', 0))
+                        prev_rev = float(prev_data.iloc[0].get('total_revenue', 0))
                         if prev_rev > 0:
                             growth = ((rev - prev_rev) / prev_rev) * 100
                             
@@ -512,7 +539,7 @@ class AIQueryInterface:
                 else:
                     result['summary'] = f"No specific records found for {month_target}/{year_target} in the database."
             else:
-                result['summary'] = "The 'month' or 'year' column is missing from the dataset."
+                result['summary'] = f"The dataset columns are: {list(df.columns)}. Expected 'report_month' and 'report_year' columns."
 
             return result
 

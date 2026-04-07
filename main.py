@@ -26,8 +26,17 @@ def run_extraction(args):
     extractor = SalesExtractor()
     transformer = DataTransformer()
     
-    date_from = args.date_from or '2010-01-01'
-    date_to = args.date_to or '2010-12-31'
+    # Nếu không truyền date range thì lấy tất cả dữ liệu có sẵn
+    if not args.date_from or not args.date_to:
+        # Lấy khoảng thời gian thực tế từ database
+        min_date, max_date = extractor.get_available_date_range()
+        date_from = args.date_from or min_date
+        date_to = args.date_to or max_date
+        logger.info(f"Auto detected full date range: {date_from} to {max_date}")
+    else:
+        date_from = args.date_from
+        date_to = args.date_to
+        logger.info(f"Using custom date range: {date_from} to {date_to}")
     
     # Extract
     df_main = extractor.extract_sales_main(date_from=date_from, date_to=date_to)
@@ -90,7 +99,7 @@ def run_query(args):
     
     logger.info("Starting AI query")
     
-    interface = AIQueryInterface()
+    interface = AIQueryInterface(companyfn=args.companyfn)
     
     if args.interactive:
         # Interactive mode
@@ -152,6 +161,7 @@ def main():
     # Query command
     query_parser = subparsers.add_parser('query', help='Query AI for insights')
     query_parser.add_argument('--query', '-q', help='Query string')
+    query_parser.add_argument('--companyfn', '-c', help='Company code for data isolation')
     query_parser.add_argument('--interactive', '-i', action='store_true',
                              help='Interactive mode')
     

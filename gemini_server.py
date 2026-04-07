@@ -20,7 +20,7 @@ PORT = 9001
 # Configure OpenRouter API
 # You need to set your API key here or use environment variable
 # Get free API key at: https://openrouter.ai/keys
-OPENROUTER_API_KEY = os.getenv('OPENROUTER_API_KEY', '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')
+OPENROUTER_API_KEY = os.getenv('OPENROUTER_API_KEY', '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')
 
 # Import AI Query Interface
 # Dictionary to store AI interfaces per company

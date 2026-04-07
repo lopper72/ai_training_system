@@ -718,6 +718,7 @@ class SalesExtractor:
                 FROM scm_sal_main
                 WHERE (tag_table_usage = 'sal_soc' or (tag_table_usage = 'sal_soe' and tag_closed02_yn = 'n'))
                 AND tag_deleted_yn = 'n'
+                AND tag_void_yn = 'n'
             """
             
             params = {}
@@ -759,6 +760,41 @@ class SalesExtractor:
             logger.error(f"Error extracting scm_sal_data: {str(e)}")
             raise
     
+    def get_available_date_range(self, companyfn: Optional[str] = None) -> Tuple[str, str]:
+        """
+        Lấy khoảng thời gian dữ liệu thực tế có sẵn trong database
+        Returns:
+            Tuple (min_date, max_date) dạng 'YYYY-MM-DD'
+        """
+        try:
+            query = """
+                SELECT 
+                    MIN(date_trans) as min_date,
+                    MAX(date_trans) as max_date
+                FROM scm_sal_main
+                WHERE tag_void_yn = 'n'
+            """
+            
+            params = {}
+            if companyfn or self.companyfn:
+                effective_companyfn = companyfn or self.companyfn
+                query += " AND companyfn = :companyfn"
+                params['companyfn'] = effective_companyfn
+            
+            result = self.db_extractor.extract_data(query, params)
+            
+            if len(result) == 0:
+                return ('2009-01-01', '2026-12-31')
+            
+            min_date = result.iloc[0]['min_date'].strftime('%Y-%m-%d')
+            max_date = result.iloc[0]['max_date'].strftime('%Y-%m-%d')
+            
+            return (min_date, max_date)
+            
+        except Exception as e:
+            logger.error(f"Error getting date range: {str(e)}")
+            return ('2009-01-01', '2026-12-31')
+
     def close(self):
         """Close connection"""
         self.db_extractor.close()
