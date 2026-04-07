@@ -710,12 +710,14 @@ class SalesExtractor:
             # Only select columns that exist in database
             query = """
                 SELECT 
+                    companyfn,
                     EXTRACT(MONTH FROM date_trans)::int AS month,
                     EXTRACT(YEAR FROM date_trans)::int AS year,
                     SUM(amount_local) AS amt_local,
                     COUNT(DISTINCT uniquenum_pri) AS num_transactions
-                FROM scm_sal_data
+                FROM scm_sal_main
                 WHERE (tag_table_usage = 'sal_soc' or (tag_table_usage = 'sal_soe' and tag_closed02_yn = 'n'))
+                AND tag_deleted_yn = 'n'
             """
             
             params = {}
@@ -746,10 +748,9 @@ class SalesExtractor:
                 params['date_to'] = date_to
             
             query += """
-                GROUP BY EXTRACT(MONTH FROM date_trans), EXTRACT(YEAR FROM date_trans)
+                GROUP BY companyfn, EXTRACT(MONTH FROM date_trans), EXTRACT(YEAR FROM date_trans)
                 ORDER BY year DESC, month DESC
             """
-            
             logger.info(f"Extracting scm_sal_data")
             
             return self.db_extractor.extract_data(query, params)

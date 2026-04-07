@@ -92,33 +92,49 @@ class AIQueryInterface:
             query_lower = query.lower()
             
             # Determine query type
-            query_type = self._classify_query(query_lower)
-            # Execute query
-            if query_type == 'revenue_report_by_date':
-                return self._handle_date_revenue_query(query_lower, None)
-            
-            if query_type == 'customer_analysis':
-                result = self._handle_customer_query(query_lower, context)
-            elif query_type == 'product_analysis':
-                result = self._handle_product_query(query_lower, context)
-            elif query_type == 'sales_trend':
-                result = self._handle_sales_trend_query(query_lower, context)
-            elif query_type == 'churn_prediction':
-                result = self._handle_churn_query(query_lower, context)
-            elif query_type == 'sales_forecast':
-                result = self._handle_forecast_query(query_lower, context)
-            else:
-                result = self._handle_general_query(query_lower, context)
+            query_types = self._classify_query(query_lower)
+            combined_results = {
+                'summary': "",
+                'data': {},
+                'insights': []
+            }
+            for q_type in query_types:
+                result = None
+                if q_type == 'revenue_report_by_date':
+                    result = self._handle_date_revenue_query(query_lower, None)
+                elif q_type == 'customer_analysis':
+                    result = self._handle_customer_query(query_lower, context)
+                elif q_type == 'product_analysis':
+                    result = self._handle_product_query(query_lower, context)
+                elif q_type == 'sales_trend':
+                    result = self._handle_sales_trend_query(query_lower, context)
+                elif q_type == 'churn_prediction':
+                    result = self._handle_churn_query(query_lower, context)
+                elif q_type == 'sales_forecast':
+                    result = self._handle_forecast_query(query_lower, context)
+
+                # --- Xử lý đổ result vào result combine ---
+                if result:
+                    if result.get('summary'):
+                        combined_results['summary'] += f"\n{result['summary']}"
+                    
+                    combined_results['data'][q_type] = result.get('data', {})
+                    
+                    if result.get('insights'):
+                        combined_results['insights'].extend(result['insights'])
+                # ------------------------------
+
+            if not combined_results['data']:
+                combined_results = self._handle_general_query(query_lower, context)
             
             # Save history
             self.query_history.append({
                 'query': query,
-                'query_type': query_type,
-                'timestamp': datetime.now().isoformat(),
-                'result_summary': str(result.get('summary', ''))[:100]
+                'query_type': query_types,
+                'timestamp': datetime.now().isoformat()
             })
             
-            return result
+            return combined_results
             
         except Exception as e:
             logger.error(f"Error processing query: {str(e)}")
@@ -136,19 +152,24 @@ class AIQueryInterface:
         forecast_keywords = ['forecast', 'predict', 'future', 'projection', 'plan']
         revenue_report_keywords = ['revenue report', 'revenue by date', 'revenue date', 'revenue by month']
         
+        targets = []
+
         if re.search(r'\d{1,2}/\d{4}', query) or any(kw in query for kw in revenue_report_keywords):
-            return 'revenue_report_by_date'
-        
+            targets.append('revenue_report_by_date')    
+
         if any(kw in query for kw in customer_keywords):
-            return 'customer_analysis'
-        elif any(kw in query for kw in product_keywords):
-            return 'product_analysis'
-        elif any(kw in query for kw in trend_keywords):
-            return 'sales_trend'
-        elif any(kw in query for kw in forecast_keywords):
-            return 'sales_forecast'
-        else:
-            return 'general'
+            targets.append('customer_analysis')
+        if any(kw in query for kw in product_keywords):
+            targets.append('product_analysis')
+        if any(kw in query for kw in trend_keywords):
+            targets.append('sales_trend')
+        if any(kw in query for kw in forecast_keywords):
+            targets.append('sales_forecast')
+
+        if not targets:
+            return ['general']
+
+        return targets
     
     def _handle_customer_query(self, query: str, context: Optional[Dict]) -> Dict:
         """Handle customer-related query"""
@@ -162,65 +183,88 @@ class AIQueryInterface:
                 'data': {},
                 'insights': []
             }
+
+            date_match = re.search(r'(\d{1,2})/(\d{4})', query)
+            period_text = "all-time"
+            
+            if date_match:
+                month = int(date_match.group(1))
+                year = int(date_match.group(2))
+                
+                # Check if date columns exist before filtering
+                if 'month' in df.columns and 'year' in df.columns:
+                    df = df[(df['month'] == month) & (df['year'] == year)]
+                    period_text = f"for {month}/{year}"
+                else:
+                    result['insights'].append("Warning: Monthly filtering requested but 'month/year' columns missing in data.")
+
+            revenue_metrics = ['line_amount', 'total_revenue', 'amt_local', 'amount', 'revenue']
+            revenue_col = next((col for col in revenue_metrics if col in df.columns), None)
             
             # Top customers
-            if 'top' in query or 'most' in query:
-                # Find appropriate revenue column
-                revenue_col = None
-                for col in ['amt_local', 'month', 'amount', 'revenue_level', 'year']:
-                    if col in df.columns:
-                        revenue_col = col
-                        break
-                
+            if 'top' in query or 'most' in query or 'best' in query:                
                 if revenue_col:
+                    # Group by theo tên khách hàng và tính tổng doanh thu
                     top_customers = df.groupby('customer_name')[revenue_col].sum().sort_values(ascending=False).head(10)
-                    result['data']['top_customers'] = top_customers.to_dict()
-                    result['summary'] = f"Top 10 customers by revenue"
-                    result['insights'].append(f"Top customer: {top_customers.index[0]} with revenue {top_customers.iloc[0]:,.0f}")
+                    
+                    if not top_customers.empty:
+                        result['data']['top_customers'] = top_customers.to_dict()
+                        result['summary'] = f"Top 10 customers by revenue ({period_text})"
+                        result['insights'].append(f"Number 1 customer {period_text}: {top_customers.index[0]} (${top_customers.iloc[0]:,.2f})")
+                    else:
+                        result['summary'] = f"No customer data found {period_text}"
                 else:
-                    result['summary'] = f"No revenue column found in data"
-            
+                    result['summary'] = "No valid revenue column found for ranking"            
             # Repeat customers
             elif 'repeat' in query or 'return' in query:
-                repeat_customers = df.groupby('customer_id')['transaction_date'].nunique()
-                repeat_rate = (repeat_customers > 1).mean() * 100
-                result['data']['repeat_rate'] = repeat_rate
-                result['summary'] = f"Customer repeat rate: {repeat_rate:.1f}%"
-                result['insights'].append(f"{(repeat_customers > 1).sum()} customers made repeat purchases")
+                if 'customer_id' in df.columns and 'transaction_date' in df.columns:
+                    # Đếm số ngày mua hàng duy nhất của mỗi khách
+                    repeat_counts = df.groupby('customer_id')['transaction_date'].nunique()
+                    repeat_rate = (repeat_counts > 1).mean() * 100
+                    result['data']['repeat_rate'] = repeat_rate
+                    result['summary'] = f"Customer repeat rate ({period_text}): {repeat_rate:.1f}%"
+                    result['insights'].append(f"{(repeat_counts > 1).sum()} customers made repeat purchases")
+                else:
+                    result['summary'] = "Missing ID or Date columns to calculate repeat rate"
             
             # Customer segments
             elif 'segment' in query:
                 if 'customer_segment' in df.columns:
+                    # Đếm số lượng khách hàng trong từng phân khúc
                     segments = df['customer_segment'].value_counts()
                     result['data']['customer_segments'] = segments.to_dict()
-                    result['summary'] = f"Customer segments"
+                    result['summary'] = f"Customer segments distribution ({period_text})"
+                    
+                    # Thêm insight về phân khúc lớn nhất
+                    top_seg = segments.index[0]
+                    result['insights'].append(f"Largest segment {period_text}: {top_seg} with {segments.iloc[0]} customers")
+                else:
+                    result['summary'] = f"Segmentation column not found in data"
             
             # Default: Overview
             else:
-                total_customers = df['customer_id'].nunique()
+                # Đếm số lượng khách hàng duy nhất
+                total_customers = df['customer_id'].nunique() if 'customer_id' in df.columns else len(df)
                 
-                # Find appropriate revenue column
-                revenue_col = None
-                for col in ['total_revenue', 'line_amount', 'amount', 'revenue', 'total']:
-                    if col in df.columns:
-                        revenue_col = col
-                        break
+                # Tự động tìm cột doanh thu phù hợp
+                revenue_metrics = ['line_amount', 'total_revenue', 'amount', 'revenue', 'total']
+                revenue_col = next((col for col in revenue_metrics if col in df.columns), None)
                 
                 if revenue_col:
                     total_revenue = df[revenue_col].sum()
-                    avg_order_value = df.groupby('customer_id')[revenue_col].mean().mean()
+                    # Tính giá trị trung bình trên mỗi khách hàng
+                    avg_order_value = df.groupby('customer_id')[revenue_col].sum().mean() if 'customer_id' in df.columns else 0
                     
                     result['data'] = {
                         'total_customers': total_customers,
                         'total_revenue': total_revenue,
-                        'avg_order_value': avg_order_value
+                        'avg_customer_value': avg_order_value
                     }
-                    result['summary'] = f"Customer overview: {total_customers} customers, revenue {total_revenue:,.0f}"
+                    result['summary'] = f"Customer overview ({period_text}): {total_customers} customers, Total Revenue: ${total_revenue:,.2f}"
+                    result['insights'].append(f"Average value per customer {period_text}: ${avg_order_value:,.2f}")
                 else:
-                    result['data'] = {
-                        'total_customers': total_customers
-                    }
-                    result['summary'] = f"Customer overview: {total_customers} customers"
+                    result['data'] = {'total_customers': total_customers}
+                    result['summary'] = f"Customer overview ({period_text}): {total_customers} customers"
             
             return result
             
@@ -399,8 +443,7 @@ class AIQueryInterface:
         """
         Specialized handler for time-specific revenue queries (MM/YYYY).
         """
-        try:
-            import re
+        try:            
             # 1. Trích xuất Tháng và Năm từ query
             match = re.search(r'(\d{1,2})/(\d{4})', query)
             if not match:
@@ -412,6 +455,11 @@ class AIQueryInterface:
             
             # 2. Load dữ liệu
             df = self.load_data('revenue_report_by_date')
+
+            target_company = context.get('companyfn') if context else None
+
+            if target_company and 'companyfn' in df.columns:
+                df = df[df['companyfn'] == target_company]
             
             result = {
                 'query_type': 'revenue_report_by_date',
