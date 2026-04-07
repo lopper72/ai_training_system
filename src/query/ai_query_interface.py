@@ -155,9 +155,9 @@ class AIQueryInterface:
         
         targets = []
 
-        # Match both MM/YYYY format AND text month names (February 2010, Feb 2010, 2 2010)
-        date_pattern = r'(\d{1,2}/\d{4})|(\d{1,2}\.\d{4})|(\d{1,2}-\d{4})|(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:tember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\s*\d{4}'
-        if re.search(date_pattern, query, re.IGNORECASE) or any(kw in query for kw in revenue_report_keywords):
+        # Match MM/YYYY, MM.YYYY, MM-YYYY, text month, year only
+        date_pattern = r'(\d{1,2}/\d{4})|(\d{1,2}\.\d{4})|(\d{1,2}-\d{4})|(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:tember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\s*\d{4}|year\s*\d{4}|\d{4}\s+year|revenue\s+\d{4}'
+        if re.search(date_pattern, query, re.IGNORECASE) or any(kw in query for kw in revenue_report_keywords) or any(word.isdigit() and len(word)==4 for word in query.split()):
             targets.append('revenue_report_by_date')    
 
         if any(kw in query for kw in customer_keywords):
@@ -464,6 +464,43 @@ class AIQueryInterface:
                 'dec':12, 'december':12
             }
             
+            result = {
+                'query_type': 'revenue_report_by_date',
+                'summary': '',
+                'data': {},
+                'insights': []
+            }
+
+            # 2. Load dữ liệu TRƯỚC KHI SỬ DỤNG DF
+            df = self.load_data('revenue_report_by_date')
+
+            # THỬ NẾU CHỈ CÓ NĂM - KHÔNG CÓ THÁNG TRONG QUERY
+            year_only_match = re.search(r'^(?!.*\d{1,2}[./-]\d{4})(?!.*(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec).*\d{4}).*\b(20\d{2})\b', query, re.IGNORECASE)
+            if year_only_match:
+                year_target = int(year_only_match.group(2))
+                
+                # Tính tổng cả năm
+                year_data = df[df['report_year'].astype(float).astype(int) == year_target]
+                
+                if not year_data.empty:
+                    total_year_revenue = year_data['total_revenue'].sum()
+                    total_transactions = year_data['transaction_count'].sum()
+                    
+                    result['data'] = {
+                        'period': f"Year {year_target}",
+                        'total_revenue': total_year_revenue,
+                        'transaction_count': total_transactions,
+                        'month_count': len(year_data)
+                    }
+                    
+                    result['summary'] = (
+                        f"Total Revenue for year {year_target}: ${total_year_revenue:,.2f}, "
+                        f"Total Transactions: {total_transactions:,}, "
+                        f"Months with data: {len(year_data)}."
+                    )
+                    
+                    return result
+
             # Thử match format số trước - HỖ TRỢ TẤT CẢ DẤU NGĂN CÁCH
             match = re.search(r'(\d{1,2})[./-](\d{4})', query)
             
