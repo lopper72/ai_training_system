@@ -8,6 +8,7 @@ from typing import Dict, List, Optional, Any
 from datetime import datetime
 import pandas as pd
 import json
+import re
 
 logger = logging.getLogger(__name__)
 
@@ -92,8 +93,10 @@ class AIQueryInterface:
             
             # Determine query type
             query_type = self._classify_query(query_lower)
-            
             # Execute query
+            if query_type == 'revenue_report_by_date':
+                return self._handle_date_revenue_query(query_lower, None)
+            
             if query_type == 'customer_analysis':
                 result = self._handle_customer_query(query_lower, context)
             elif query_type == 'product_analysis':
@@ -126,10 +129,15 @@ class AIQueryInterface:
     
     def _classify_query(self, query: str) -> str:
         """Classify query type"""
+        query = query.lower()
         customer_keywords = ['customer', 'purchase', 'repurchase', 'churn', 'retention']
-        product_keywords = ['product', 'item', 'goods', 'bestseller', 'revenue']
+        product_keywords = ['product', 'item', 'goods', 'bestseller']
         trend_keywords = ['trend', 'over time', 'monthly', 'yearly', 'growth']
         forecast_keywords = ['forecast', 'predict', 'future', 'projection', 'plan']
+        revenue_report_keywords = ['revenue report', 'revenue by date', 'revenue date', 'revenue by month']
+        
+        if re.search(r'\d{1,2}/\d{4}', query) or any(kw in query for kw in revenue_report_keywords):
+            return 'revenue_report_by_date'
         
         if any(kw in query for kw in customer_keywords):
             return 'customer_analysis'
@@ -159,7 +167,7 @@ class AIQueryInterface:
             if 'top' in query or 'most' in query:
                 # Find appropriate revenue column
                 revenue_col = None
-                for col in ['total_revenue', 'line_amount', 'amount', 'revenue', 'total']:
+                for col in ['amt_local', 'month', 'amount', 'revenue_level', 'year']:
                     if col in df.columns:
                         revenue_col = col
                         break
@@ -386,7 +394,85 @@ class AIQueryInterface:
         except Exception as e:
             logger.error(f"Error handling forecast query: {str(e)}")
             return {'error': str(e)}
-    
+        
+    def _handle_date_revenue_query(self, query: str, context: Optional[Dict]) -> Dict:
+        """
+        Specialized handler for time-specific revenue queries (MM/YYYY).
+        """
+        try:
+            import re
+            # 1. Trích xuất Tháng và Năm từ query
+            match = re.search(r'(\d{1,2})/(\d{4})', query)
+            if not match:
+                return {'error': 'No valid date format (MM/YYYY) found in query.'}
+                
+            # Chuyển tháng về kiểu INT để khớp với dữ liệu thực tế [10, 9]
+            month_target = int(match.group(1))
+            year_target = int(match.group(2))
+            
+            # 2. Load dữ liệu
+            df = self.load_data('revenue_report_by_date')
+            
+            result = {
+                'query_type': 'revenue_report_by_date',
+                'summary': '',
+                'data': {},
+                'insights': []
+            }
+
+            # 3. Lọc dữ liệu theo tháng và năm
+            if 'month' in df.columns and 'year' in df.columns:
+                mask = (df['month'].astype(float).astype(int) == month_target) & \
+                   (df['year'].astype(float).astype(int) == year_target)
+                
+                target_data = df[mask]
+                
+                if not target_data.empty:
+                    row = target_data.iloc[0]                    
+                    rev = float(row.get('amt_local', 0))
+                    trans = int(row.get('num_transactions', 0))
+                    growth = 0.0
+                    prev_month = 12 if month_target == 1 else month_target - 1
+                    prev_year = year_target - 1 if month_target == 1 else year_target
+                    prev_mask = (df['month'].astype(float).astype(int) == prev_month) & \
+                            (df['year'].astype(float).astype(int) == prev_year)
+                    prev_data = df[prev_mask]
+                    if not prev_data.empty:
+                        prev_rev = float(prev_data.iloc[0].get('amt_local', 0))
+                        if prev_rev > 0:
+                            growth = ((rev - prev_rev) / prev_rev) * 100
+                            
+                    # Đổ dữ liệu vào kết quả
+                    result['data'] = {
+                        'period': f"{month_target}/{year_target}",
+                        'total_revenue': rev,
+                        'transaction_count': trans,
+                        'growth_rate_percentage': f"{growth:.2f}%"
+                    }
+                    
+                    result['summary'] = (
+						f"Report for {month_target}/{year_target}: "
+						f"Total Revenue: ${rev:,.2f}, "
+						f"Transactions: {trans:,}, "
+						f"Growth: {growth:.2f}%."
+					)
+                    
+                    result['insights'] = [
+						f"Successfully retrieved {trans} transactions from the database.",
+						f"The average revenue per transaction is ${rev/trans:,.2f}." if trans > 0 else "No transaction volume to calculate average."
+					]
+                else:
+                    result['summary'] = f"No specific records found for {month_target}/{year_target} in the database."
+            else:
+                result['summary'] = "The 'month' or 'year' column is missing from the dataset."
+
+            return result
+
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).error(f"Error in DateRevenueAnalyst: {str(e)}")
+            return {'error': f"Processing failed: {str(e)}"}
+        
     def _handle_general_query(self, query: str, context: Optional[Dict]) -> Dict:
         """Handle general query"""
         return {

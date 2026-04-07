@@ -171,6 +171,39 @@ def create_customer_retention(df_main, df_data):
     except Exception as e:
         logger.error(f"Error creating customer_retention: {str(e)}")
         return None
+    
+def create_isolated_revenue_report(df_main, df_data):
+    """
+    NEW HANDLER: Create a specific dataset for date-based revenue analysis.
+    This is isolated from general trends to provide clean, filtered data.
+    """
+    try:
+        df = df_data.merge(df_main, on='uniquenum_pri', how='left')
+        
+        df['date_trans_x'] = pd.to_datetime(df['date_trans_x'])
+        df['year'] = df['date_trans_x'].dt.year
+        df['month'] = df['date_trans_x'].dt.month
+        
+        isolated_revenue = df[df['amount_local_x'] > 0].groupby(['year', 'month']).agg({
+            'amount_local_x': 'sum',
+            'uniquenum_pri': 'nunique', # Đếm số hóa đơn duy nhất
+            'party_code_x': 'nunique'   # Đếm số khách hàng trong tháng
+        }).reset_index()
+        
+        isolated_revenue.columns = [
+            'report_year', 'report_month', 'total_revenue', 
+            'transaction_count', 'active_customers'
+        ]
+        
+        output_path = 'data/processed/revenue_report_by_date.parquet'
+        isolated_revenue.to_parquet(output_path, index=False)
+        
+        logger.info(f"SUCCESS: Created isolated revenue report: {len(isolated_revenue)} records at {output_path}")
+        return isolated_revenue
+        
+    except Exception as e:
+        logger.error(f"Error creating isolated revenue report: {str(e)}")
+        return None
 
 
 def main():
@@ -188,6 +221,7 @@ def main():
     create_product_analysis(df_main, df_data)
     create_sales_trend(df_main, df_data)
     create_customer_retention(df_main, df_data)
+    create_isolated_revenue_report(df_main, df_data)
     
     logger.info("Completed creating datasets!")
 

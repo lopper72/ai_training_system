@@ -682,6 +682,81 @@ class SalesExtractor:
         except Exception as e:
             logger.error(f"Error extracting trend data: {str(e)}")
             raise
+        
+    def extract_date_revenue_data(
+        self,
+        companyfn: Optional[str] = None,
+        uniquenum_pri: Optional[str] = None,
+        date_from: Optional[str] = None,
+        date_to: Optional[str] = None,
+        product_codes: Optional[List[str]] = None,
+        include_void: bool = False
+    ) -> pd.DataFrame:
+        """
+        Extract data from scm_sal_data table
+        
+        Args:
+            companyfn: Company code
+            uniquenum_pri: Specific order ID
+            date_from: Start date
+            date_to: End date
+            product_codes: List of product codes
+            include_void: Include voided transactions
+            
+        Returns:
+            DataFrame containing data
+        """
+        try:
+            # Only select columns that exist in database
+            query = """
+                SELECT 
+                    EXTRACT(MONTH FROM date_trans)::int AS month,
+                    EXTRACT(YEAR FROM date_trans)::int AS year,
+                    SUM(amount_local) AS amt_local,
+                    COUNT(DISTINCT uniquenum_pri) AS num_transactions
+                FROM scm_sal_data
+                WHERE (tag_table_usage = 'sal_soc' or (tag_table_usage = 'sal_soe' and tag_closed02_yn = 'n'))
+            """
+            
+            params = {}
+            
+            if companyfn:
+                query += " AND companyfn = :companyfn"
+                params['companyfn'] = companyfn
+            
+            if uniquenum_pri:
+                query += " AND uniquenum_pri = :uniquenum_pri"
+                params['uniquenum_pri'] = uniquenum_pri
+            
+            if not include_void:
+                query += " AND tag_void_yn = 'n'"
+            
+            if product_codes:
+                placeholders = ", ".join([f":prod_{i}" for i in range(len(product_codes))])
+                query += f" AND stkcode_code IN ({placeholders})"
+                for i, code in enumerate(product_codes):
+                    params[f"prod_{i}"] = code
+            
+            if date_from:
+                query += " AND date_trans >= :date_from"
+                params['date_from'] = date_from
+            
+            if date_to:
+                query += " AND date_trans <= :date_to"
+                params['date_to'] = date_to
+            
+            query += """
+                GROUP BY EXTRACT(MONTH FROM date_trans), EXTRACT(YEAR FROM date_trans)
+                ORDER BY year DESC, month DESC
+            """
+            
+            logger.info(f"Extracting scm_sal_data")
+            
+            return self.db_extractor.extract_data(query, params)
+            
+        except Exception as e:
+            logger.error(f"Error extracting scm_sal_data: {str(e)}")
+            raise
     
     def close(self):
         """Close connection"""

@@ -42,11 +42,16 @@ def run_daily_training():
         
         # Get last 30 days of data
         from datetime import timedelta
-        date_from = (datetime.now() - timedelta(days=30)).strftime('%Y-%m-%d')
-        date_to = datetime.now().strftime('%Y-%m-%d')
+        # date_from = (datetime.now() - timedelta(days=30)).strftime('%Y-%m-%d')
+        # date_to = datetime.now().strftime('%Y-%m-%d')
+        date_from = '2010-01-01'
+        date_to = '2010-12-31'
         
         df_main = extractor.extract_sales_main(date_from=date_from, date_to=date_to)
         df_data = extractor.extract_sales_data(date_from=date_from, date_to=date_to)
+        
+        # Thêm extract revenue theo date giống các thằng khác
+        df_revenue = extractor.extract_date_revenue_data(date_from=date_from, date_to=date_to)
         
         logger.info(f"Extracted {len(df_main)} main records, {len(df_data)} detail records")
         
@@ -57,9 +62,16 @@ def run_daily_training():
         df_main_clean = transformer.clean_sales_main(df_main)
         df_data_clean = transformer.clean_sales_data(df_data)
         
+        # Bổ sung Transform cho revenue giống bên Weekly để dữ liệu sạch trước khi lưu
+        df_revenue_clean = transformer.transform_date_revenue(df_revenue)
+        logger.info("SUCCESS: Revenue Parquet created!Daily")
         # Save processed data
         transformer.save_transformed_data(df_main_clean, 'data/processed/sales_main_latest.parquet')
         transformer.save_transformed_data(df_data_clean, 'data/processed/sales_data_latest.parquet')
+
+        # Lưu file revenue riêng biệt (dùng bản clean)
+        if df_revenue_clean is not None:
+            transformer.save_transformed_data(df_revenue_clean, 'data/processed/revenue_report_by_date.parquet')
         
         # 3. Retrain models (if enough data)
         if len(df_main_clean) > 100:
@@ -116,6 +128,9 @@ def run_weekly_training():
         # Customer retention
         df_retention = extractor.extract_customer_retention_data(lookback_days=365)
         
+        # Revenue Date analysis - Thêm vào luồng Weekly
+        df_revenue = extractor.extract_date_revenue_data(date_from=date_from, date_to=date_to)
+        
         logger.info(f"Extracted: {len(df_customer)} customer, {len(df_product)} product, {len(df_trend)} trend records")
         
         # 2. Transform and save
@@ -123,14 +138,33 @@ def run_weekly_training():
         transformer = DataTransformer()
         
         df_customer_clean = transformer.transform_customer_analysis(df_customer)
-        df_product_clean = transformer.transform_product_analysis(df_product)
         df_trend_clean = transformer.transform_sales_trend(df_trend)
         df_retention_clean = transformer.transform_customer_retention(df_retention)
+        df_revenue_clean = transformer.transform_date_revenue(df_revenue)
+
+        try:
+            df_revenue_clean = transformer.transform_date_revenue(df_revenue)
+            if df_revenue_clean is not None:
+                transformer.save_transformed_data(df_revenue_clean, 'data/processed/revenue_report_by_date.parquet')
+                logger.info("SUCCESS: Revenue Parquet created!")
+        except Exception as e:
+            logger.error(f"Error in Revenue module: {str(e)}")
+
+        try:
+            # Đoạn này là chỗ gây ra lỗi "Bin labels"
+            df_product_clean = transformer.transform_product_analysis(df_product)
+            transformer.save_transformed_data(df_product_clean, 'data/processed/product_analysis.parquet')
+        except Exception as e:
+            logger.error(f"Error in Product module: {str(e)}")
         
         transformer.save_transformed_data(df_customer_clean, 'data/processed/customer_analysis.parquet')
-        transformer.save_transformed_data(df_product_clean, 'data/processed/product_analysis.parquet')
         transformer.save_transformed_data(df_trend_clean, 'data/processed/sales_trend.parquet')
         transformer.save_transformed_data(df_retention_clean, 'data/processed/customer_retention.parquet')
+        transformer.save_transformed_data(df_retention_clean, 'data/processed/customer_retention.parquet')
+        
+        # Lưu file revenue
+        if df_revenue_clean is not None:
+            transformer.save_transformed_data(df_revenue_clean, 'data/processed/revenue_report_by_date.parquet')
         
         # 3. Full model retrain
         logger.info("Step 3: Full model retrain")

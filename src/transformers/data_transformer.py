@@ -50,6 +50,37 @@ class DataTransformer:
                 'stk_do': 'Delivery Order',
                 'stk_doc': 'Delivery Order Confirmation'
             }
+        
+    def transform_date_revenue(self, df: pd.DataFrame) -> pd.DataFrame:
+        """
+        Transform data for date-based revenue analysis
+        """
+        try:
+            logger.info("Transforming date revenue data")
+            df_clean = df.copy()
+            
+            # 1. Ep kieu du lieu
+            df_clean['month'] = pd.to_numeric(df_clean['month'], errors='coerce').fillna(0).astype(int)
+            df_clean['year'] = pd.to_numeric(df_clean['year'], errors='coerce').fillna(0).astype(int)
+            df_clean['amt_local'] = pd.to_numeric(df_clean['amt_local'], errors='coerce').fillna(0)
+            
+            # 2. Loai bo cac dong loi
+            df_clean = df_clean[(df_clean['month'] > 0) & (df_clean['year'] > 0)]
+            
+            # 3. Them cot bo tro
+            if not df_clean.empty:
+                df_clean['revenue_level'] = pd.qcut(
+                    df_clean['amt_local'],
+                    q=3,
+                    labels=['Low', 'Medium', 'High'],
+                    duplicates='drop'
+                )
+                
+            return df_clean
+
+        except Exception as e:
+            logger.error(f"Error transforming date revenue data: {str(e)}")
+            raise
     
     def clean_sales_main(self, df: pd.DataFrame) -> pd.DataFrame:
         """
@@ -163,7 +194,10 @@ class DataTransformer:
             df_clean['quarter'] = df_clean['date_trans'].dt.quarter
             
             # 5. Create product identifier
-            df_clean['product_id'] = df_clean['stkcode_code'] + '_' + df_clean['stkcode_unique'].astype(str)
+            df_clean['stkcode_code'] = df_clean['stkcode_code'].astype(str).fillna('N/A')
+            df_clean['stkcode_unique'] = df_clean['stkcode_unique'].astype(str).fillna('0')
+            
+            df_clean['product_id'] = df_clean['stkcode_code'] + '_' + df_clean['stkcode_unique']
             
             logger.info(f"Completed cleaning scm_sal_data: {len(df_clean)} records")
             
@@ -356,6 +390,7 @@ class DataTransformer:
         except Exception as e:
             logger.error(f"Error transforming trend data: {str(e)}")
             raise
+
     
     def save_transformed_data(self, df: pd.DataFrame, output_path: str, format: str = 'parquet'):
         """Save transformed data"""
@@ -398,4 +433,4 @@ class DataTransformer:
             
         except Exception as e:
             logger.error(f"Error loading data: {str(e)}")
-            raise
+            raise  

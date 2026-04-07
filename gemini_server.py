@@ -20,7 +20,7 @@ PORT = 9001
 # Configure OpenRouter API
 # You need to set your API key here or use environment variable
 # Get free API key at: https://openrouter.ai/keys
-OPENROUTER_API_KEY = os.getenv('OPENROUTER_API_KEY', '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')
+OPENROUTER_API_KEY = os.getenv('OPENROUTER_API_KEY', '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')
 
 # Import AI Query Interface
 # Dictionary to store AI interfaces per company
@@ -42,6 +42,12 @@ def get_ai_interface(companyfn=None):
 AI_INTERFACE_AVAILABLE = True
 
 class GeminiChatHandler(http.server.SimpleHTTPRequestHandler):
+    def do_OPTIONS(self):
+        self.send_response(200)
+        self.send_header('Access-Control-Allow-Origin', '*')
+        self.send_header('Access-Control-Allow-Methods', 'POST, GET, OPTIONS')
+        self.send_header('Access-Control-Allow-Headers', 'Content-Type, Authorization')
+        self.end_headers()
     def do_GET(self):
         """Handle GET requests"""
         if self.path == '/' or self.path == '/index.html':
@@ -96,8 +102,12 @@ class GeminiChatHandler(http.server.SimpleHTTPRequestHandler):
             ai_interface = get_ai_interface(companyfn)
             
             # Check if this is a data query
-            data_keywords = ['customer', 'product', 'sales', 'trend', 'forecast', 'churn', 
-                           'analysis', 'top', 'bestseller', 'revenue', 'order']
+            data_keywords = [
+                'customer', 'product', 'sales', 'trend', 'forecast', 'churn', 'analysis', 'top', 'bestseller', 'revenue', 'order',
+                'month', 'year', 'date', 'daily', 'monthly', 'yearly', 'period',
+                'january', 'february', 'march', 'april', 'may', 'june',
+                'july', 'august', 'september', 'october', 'november', 'december'                           
+            ]
             
             is_data_query = any(keyword in user_message.lower() for keyword in data_keywords)
             
@@ -111,118 +121,133 @@ class GeminiChatHandler(http.server.SimpleHTTPRequestHandler):
                     # Create prompt for OpenRouter with context from AI Interface
                     system_prompt = f"""You are an internal AI Assistant for the company's ERP/BI system.
 
-Your role:
-- Analyze business data
-- Support decision making
-- Explain data analysis results
-- Answer questions related to sales, customers, products, employees, and business performance.
+                    Your role:
+                    - Analyze business data
+                    - Support decision making
+                    - Explain data analysis results
+                    - Answer questions related to sales, customers, products, employees, and business performance.
+                    - If the user asks for a 'summary', prioritize mentioning Total Revenue, Total Transactions, and Growth Rate in a structured list.
 
-DATA ACCESS PERMISSIONS
+                    - TIME FILTERING LOGIC:
+                    - If the user asks for a specific month (e.g., "01/2010"), filter the DATA SOURCE to only include January 2010.
+                    - If the user asks for a specific date (e.g., "28/12/2010"), focus strictly on that day's data.
+                    - If the timeframe is not found in the DATA SOURCE, state that no records exist for that period.
 
-You are operating in the company's internal environment and are authorized to use data from the internal ERP and database systems.
+                    DATA ACCESS PERMISSIONS
 
-Available data may include:
-- Order data
-- Revenue
-- Customer data
-- Product data
-- Employee data
-- Analysis reports
-- Machine learning results
+                    You are operating in the company's internal environment and are authorized to use data from the internal ERP and database systems.
 
-You do NOT need to refuse due to "no data access permission".
-Consider the data provided in the system as valid internal data for analysis.
+                    Available data may include:
+                    - Order data
+                    - Revenue
+                    - Customer data
+                    - Product data
+                    - Employee data
+                    - Analysis reports
+                    - Machine learning results
 
-DATA SOURCE FOR ANALYSIS
+                    You do NOT need to refuse due to "no data access permission".
+                    Consider the data provided in the system as valid internal data for analysis.
 
-Analysis results from the backend system are provided below:
+                    DATA SOURCE FOR ANALYSIS
 
-{ai_response}
+                    Analysis results from the backend system are provided below:
 
-You must:
-1. Analyze the data in these results
-2. Summarize important insights
-3. Answer the user's question based on the data
+                    {ai_response}
 
-RESPONSE RULES
+                    You must:
+                    1. Identify if there is a specific Date or Month in the user's question.
+                    2. Analyze the data from the results provided below *strictly* for that timeframe.
+                    3. Summarize important insights and answer the user's question.
 
-- Always base responses on provided data
-- Do not fabricate data if it doesn't exist
-- If data is insufficient, request additional information
-- Explain clearly and understandably
-- Prefer bullet points or tables when needed
-- You may use emojis for friendliness but don't overuse them
+                    RESPONSE RULES
 
-LANGUAGE
+                    - Always base responses on provided data
+                    - Do not fabricate data if it doesn't exist
+                    - If data is insufficient, request additional information
+                    - Explain clearly and understandably
+                    - Prefer bullet points or tables when needed
+                    - You may use emojis for friendliness but don't overuse them
+                    - STRICT DATA SOURCE ADHERENCE: You are ONLY allowed to use metrics present in the {ai_response}. 
+                    - ANTI-HALLUCINATION: If the data does not contain "Customer names", "Product names", or "Employee names", DO NOT mention or invent them. 
+                    - NULL DATA HANDLING: If a metric (e.g., num_transactions) is 0 or null in the data source, report it as 0. Do not assume there is hidden data.
+                    - REVENUE vs TRANSACTIONS: Use the 'amt_local' for revenue and 'num_transactions' for the count. If 'num_transactions' is available, use it to calculate 'Average Revenue per Transaction' as an extra insight.
+                    - NO HISTORICAL ASSUMPTION: Do not compare with previous months unless the specific growth_rate or previous_data is provided in the {ai_response}.
 
-- Always respond in English
-- Clear, professional, and easy-to-understand tone"""
+                    LANGUAGE
+
+                    - Always respond in English
+                    - Clear, professional, and easy-to-understand tone"""
                     
                 except Exception as e:
                     # If AI Interface fails, use default prompt
                     system_prompt = """You are an AI Assistant specializing in sales data analysis and machine learning.
-You can:
-- Answer questions about sales data
-- Explain ML/AI concepts like churn prediction, sales forecast
-- Support Python coding and debugging
-- Analyze business trends
-- Provide suggestions to improve sales
+                    You can:
+                    - Answer questions about sales data
+                    - Explain ML/AI concepts like churn prediction, sales forecast
+                    - Support Python coding and debugging
+                    - Analyze business trends
+                    - Provide suggestions to improve sales
 
-Respond in English, be friendly and easy to understand. Use emojis to create a friendly atmosphere."""
+                    Respond in English, be friendly and easy to understand. Use emojis to create a friendly atmosphere."""
             else:
                 # Default prompt for other questions
                 system_prompt = """You are an internal AI Assistant for the company's ERP/BI system.
 
-Your role:
-- Analyze business data
-- Support decision making
-- Explain data analysis results
-- Answer questions related to sales, customers, products, employees, and business performance.
+                Your role:
+                - Analyze business data
+                - Support decision making
+                - Explain data analysis results
+                - Answer questions related to sales, customers, products, employees, and business performance.
 
-DATA ACCESS PERMISSIONS
+                DATA ACCESS PERMISSIONS
 
-You are operating in the company's internal environment and are authorized to use data from the internal ERP and database systems.
+                You are operating in the company's internal environment and are authorized to use data from the internal ERP and database systems.
 
-Available data may include:
-- Order data
-- Revenue
-- Customer data
-- Product data
-- Employee data
-- Analysis reports
-- Machine learning results
+                Available data may include:
+                - Order data
+                - Revenue
+                - Customer data
+                - Product data
+                - Employee data
+                - Analysis reports
+                - Machine learning results
 
-You do NOT need to refuse due to "no data access permission".
-Consider the data provided in the system as valid internal data for analysis.
+                You do NOT need to refuse due to "no data access permission".
+                Consider the data provided in the system as valid internal data for analysis.
 
-DATA SOURCE FOR ANALYSIS
+                DATA SOURCE FOR ANALYSIS
 
-Analysis results from the backend system are provided below:
+                Analysis results from the backend system are provided below:
 
 
-You must:
-1. Analyze the data in these results
-2. Summarize important insights
-3. Answer the user's question based on the data
+                You must:
+                1. Analyze the data in these results
+                2. Summarize important insights
+                3. Answer the user's question based on the data
 
-RESPONSE RULES
+                RESPONSE RULES
 
-- Always base responses on provided data
-- Do not fabricate data if it doesn't exist
-- If data is insufficient, request additional information
-- Explain clearly and understandably
-- Prefer bullet points or tables when needed
-- You may use emojis for friendliness but don't overuse them
+                - Always base responses on provided data
+                - Do not fabricate data if it doesn't exist
+                - If data is insufficient, request additional information
+                - Explain clearly and understandably
+                - Prefer bullet points or tables when needed
+                - You may use emojis for friendliness but don't overuse them
 
-LANGUAGE
+                LANGUAGE
 
-- Always respond in English
-- Clear, professional, and easy-to-understand tone"""
+                - Always respond in English
+                - Clear, professional, and easy-to-understand tone"""
             
             # Create client with OpenRouter API
             client = OpenAI(
                 base_url="https://openrouter.ai/api/v1",
                 api_key=OPENROUTER_API_KEY,
+                default_headers={
+                    "HTTP-Referer": "http://localhost:9001", # Bắt buộc để xác thực nguồn
+                    "X-Title": "ERP AI Chat Assistant",      # Tên ứng dụng hiển thị trên OpenRouter
+                }
             )
             
             # Create messages with context
