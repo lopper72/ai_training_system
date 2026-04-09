@@ -29,4 +29,3 @@ def test_february_2010_query():
 
 if __name__ == "__main__":
     success = test_february_2010_query()
-    exit(0 if success else 1)

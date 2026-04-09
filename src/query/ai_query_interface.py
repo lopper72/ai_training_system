@@ -92,6 +92,30 @@ class AIQueryInterface:
             # Analyze query
             query_lower = query.lower()
             
+            # ✅ KIỂM TRA TRUY VẤN TREND SẢN PHẨM
+            trend_keywords = ['triển vọng', 'xu hướng', 'tương lai', 'sắp tới', 'tiềm năng', 'top 10', 'trend', 'potential', 'forecast', 'potential products', 'top products', 'top 10 products']
+            is_trend_query = any(keyword in query_lower for keyword in trend_keywords)
+            
+            if is_trend_query:
+                logger.info("✅ Phát hiện truy vấn phân tích xu hướng sản phẩm")
+                from src.extractors.sales_extractor import SalesExtractor
+                from src.analysis.product_trend_analyzer import ProductTrendAnalyzer
+                
+                with SalesExtractor(companyfn=self.companyfn) as extractor:
+                    analyzer = ProductTrendAnalyzer(extractor)
+                    trend_result = analyzer.analyze_product_trends(
+                        companyfn=self.companyfn,
+                        days_history=90,
+                        top_n=10
+                    )
+                    
+                    return {
+                        'query_type': 'product_trend_analysis',
+                        'status': 'success',
+                        'result': trend_result,
+                        'query': query
+                    }
+            
             # Determine query type
             query_types = self._classify_query(query_lower)
             combined_results = {
@@ -147,11 +171,11 @@ class AIQueryInterface:
     def _classify_query(self, query: str) -> str:
         """Classify query type"""
         query = query.lower()
-        customer_keywords = ['customer', 'purchase', 'repurchase', 'churn', 'retention']
-        product_keywords = ['product', 'item', 'goods', 'bestseller']
-        trend_keywords = ['trend', 'over time', 'monthly', 'yearly', 'growth']
-        forecast_keywords = ['forecast', 'predict', 'future', 'projection', 'plan']
-        revenue_report_keywords = ['revenue report', 'revenue by date', 'revenue date', 'revenue by month']
+        customer_keywords = ['customer', 'purchase', 'repurchase', 'churn', 'retention', 'active customers', 'average order', 'repeat customer', 'order value']
+        product_keywords = ['product', 'item', 'goods', 'bestseller', 'potential products', 'top products', 'best selling']
+        trend_keywords = ['trend', 'over time', 'monthly', 'yearly', 'growth', 'sales trends', 'monthly sales']
+        forecast_keywords = ['forecast', 'predict', 'future', 'projection', 'plan', 'next 30 days', 'sales forecast']
+        revenue_report_keywords = ['revenue report', 'revenue by date', 'revenue date', 'revenue by month', 'show me revenue', 'revenue for']
         
         targets = []
 
@@ -289,10 +313,17 @@ class AIQueryInterface:
             
             # Bestselling products
             if 'bestseller' in query or 'top' in query:
-                top_products = df.groupby('product_name')['revenue'].sum().sort_values(ascending=False).head(10)
-                result['data']['top_products'] = top_products.to_dict()
-                result['summary'] = f"Top 10 bestselling products"
-                result['insights'].append(f"Bestselling product: {top_products.index[0]}")
+                # ✅ AUTO DETECT REVENUE COLUMN
+                revenue_metrics = ['line_amount', 'total_revenue', 'amt_local', 'amount', 'revenue']
+                revenue_col = next((col for col in revenue_metrics if col in df.columns), None)
+                if revenue_col:
+                    top_products = df.groupby('product_name')[revenue_col].sum().sort_values(ascending=False).head(10)
+                    result['data']['top_products'] = top_products.to_dict()
+                    result['summary'] = f"Top 10 bestselling products"
+                    if not top_products.empty:
+                        result['insights'].append(f"Bestselling product: {top_products.index[0]}")
+                else:
+                    result['summary'] = "No revenue column found in product dataset"
             
             # By category
             elif 'category' in query:
@@ -614,19 +645,19 @@ class AIQueryInterface:
             if 'error' in result:
                 return f"Error: {result['error']}"
             
-            response.append(f"📊 {result.get('summary', 'Query result')}")
+            response.append(f"[Report] {result.get('summary', 'Query result')}")
             response.append("")
             
             # Insights
             if result.get('insights'):
-                response.append("💡 Insights:")
+                response.append("* Insights:")
                 for insight in result['insights']:
                     response.append(f"  • {insight}")
                 response.append("")
             
             # Data summary
             if result.get('data'):
-                response.append("📈 Data:")
+                response.append("* Data:")
                 for key, value in result['data'].items():
                     if isinstance(value, (int, float)):
                         if value > 1000000:
@@ -638,6 +669,45 @@ class AIQueryInterface:
                     else:
                         response.append(f"  • {key}: {value}")
             
+            # ✅ AUTO GỢI Ý CÂU HỎI TIẾP THEO
+            response.append("")
+            response.append("---")
+            response.append("[Suggested] **Câu hỏi bạn có thể hỏi tiếp:**")
+            
+            followup_questions = []
+            
+            # Tự động tạo câu hỏi followup dựa trên loại query
+            if result.get('data') and 'period' in result['data']:
+                period = result['data']['period']
+                
+                # Nếu là tháng thì gợi ý câu hỏi liên quan tháng
+                if '/' in period:
+                    m,y = period.split('/')
+                    next_m = int(m)+1 if int(m) < 12 else 1
+                    next_y = int(y) if int(m) < 12 else int(y)+1
+                    prev_m = int(m)-1 if int(m) > 1 else 12
+                    prev_y = int(y) if int(m) > 1 else int(y)-1
+                    
+                    followup_questions.append(f"Doanh thu tháng {next_m}/{next_y} là bao nhiêu?")
+                    followup_questions.append(f"So sánh với tháng {prev_m}/{prev_y}")
+                    followup_questions.append(f"Top khách hàng tháng {m}/{y}")
+                    followup_questions.append(f"Xu hướng doanh thu 3 tháng gần nhất")
+                
+                # Nếu là cả năm
+                elif 'Year' in period:
+                    year = period.replace('Year ','')
+                    followup_questions.append(f"Doanh thu từng tháng năm {year}")
+                    followup_questions.append(f"So sánh với năm {int(year)-1}")
+                    followup_questions.append(f"Top sản phẩm bán chạy năm {year}")
+                    
+            # ✅ Thêm vào JSON result cho frontend render button
+            if followup_questions:
+                result['suggested_queries'] = followup_questions[:4]
+            
+            for q in followup_questions[:4]:
+                # Format như button clickable cho giao diện chat
+                response.append(f"  > **[{q}](query:{q})**")
+
             return "\n".join(response)
             
         except Exception as e:

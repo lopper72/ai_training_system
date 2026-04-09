@@ -42,10 +42,8 @@ def run_daily_training():
         
         # Get last 30 days of data
         from datetime import timedelta
-        # date_from = (datetime.now() - timedelta(days=30)).strftime('%Y-%m-%d')
-        # date_to = datetime.now().strftime('%Y-%m-%d')
-        date_from = '2010-01-01'
-        date_to = '2010-12-31'
+        date_from = (datetime.now() - timedelta(days=30)).strftime('%Y-%m-%d')
+        date_to = datetime.now().strftime('%Y-%m-%d')
         
         df_main = extractor.extract_sales_main(date_from=date_from, date_to=date_to)
         df_data = extractor.extract_sales_data(date_from=date_from, date_to=date_to)
@@ -111,10 +109,8 @@ def run_weekly_training():
         logger.info("Step 1: Extract full data")
         extractor = SalesExtractor()
         
-        # Get last year of data
-        from datetime import timedelta
-        date_from = (datetime.now() - timedelta(days=365)).strftime('%Y-%m-%d')
-        date_to = datetime.now().strftime('%Y-%m-%d')
+        # Get full historical data instead of just last year so older data (e.g. 2010) is preserved.
+        date_from, date_to = extractor.get_available_date_range()
         
         # Customer analysis
         df_customer = extractor.extract_customer_analysis_data(date_from=date_from, date_to=date_to)

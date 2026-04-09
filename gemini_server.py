@@ -17,10 +17,94 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 PORT = 9001
 
-# Configure OpenRouter API
-# You need to set your API key here or use environment variable
-# Get free API key at: https://openrouter.ai/keys
-OPENROUTER_API_KEY = os.getenv('OPENROUTER_API_KEY', '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')
+# ✅ MULTI AI PROVIDER CONFIGURATION WITH AUTOMATIC FALLBACK
+# Khi 1 cái hết quota/error, hệ thống sẽ tự động chuyển sang cái kế tiếp
+
+AI_PROVIDERS = [
+    # 1. OpenRouter (Mặc định - ưu tiên 1)
+    {
+        "name": "OpenRouter",
+        "base_url": "https://openrouter.ai/api/v1",
+        "api_key": os.getenv('OPENROUTER_API_KEY', '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'),
+        "model": "openrouter/free",
+        "enabled": True,
+        "working": True
+    },
+
+    # 2. Google Gemini Official (MIỄN PHÍ 1M token/tháng - ưu tiên 2)
+    {
+        "name": "Google Gemini",
+        "base_url": "https://generativelanguage.googleapis.com/v1beta/openai/",
+        "api_key": os.getenv('GEMINI_API_KEY', ''),
+        "model": "gemini-2.0-flash",
+        "enabled": True,
+        "working": True
+    },
+
+    # 3. Groq (MIỄN PHÍ cực nhanh - ưu tiên 3)
+    {
+        "name": "Groq",
+        "base_url": "https://api.groq.com/openai/v1",
+        "api_key": os.getenv('GROQ_API_KEY', ''),
+        "model": "llama-3.1-8b-instant",
+        "enabled": True,
+        "working": True
+    },
+
+    # 4. 🔥 Ollama - RUN LOCAL OFFLINE 100% MIỄN PHÍ (tải model về rồi mới bật)
+    {
+        "name": "Ollama (Local)",
+        "base_url": "http://localhost:11434/v1",
+        "api_key": "ollama",
+        "model": "llama3.2",
+        "enabled": False,
+        "working": True,
+        "local": True
+    },
+    
+    # 2. Google Gemini Official (Miễn phí 15RPM / 1M token/tháng - ưu tiên 2)
+    {
+        "name": "Google Gemini",
+        "base_url": "https://generativelanguage.googleapis.com/v1beta/openai/",
+        "api_key": os.getenv('GEMINI_API_KEY', 'AIzaSyCkfB4X8Zp4n5qQz7vX9zK6mN2pP8sR0tU2wY4a'),
+        "model": "gemini-2.0-flash",
+        "enabled": True,
+        "working": True
+    },
+    
+    # 3. Groq (Miễn phí cực nhanh - ưu tiên 3)
+    {
+        "name": "Groq",
+        "base_url": "https://api.groq.com/openai/v1",
+        "api_key": os.getenv('GROQ_API_KEY', 'gsk_8bKfD5eG7hJ9kL0mN2pP4rT6vX8zB0dF2hJ4lM6n'),
+        "model": "llama-3.1-8b-instant",
+        "enabled": True,
+        "working": True
+    },
+    
+    # 4. Together.ai (Free credit $5 khi đăng ký mới)
+    {
+        "name": "Together.ai",
+        "base_url": "https://api.together.xyz/v1",
+        "api_key": os.getenv('TOGETHER_API_KEY', '79a2c48f1e3b7d9a0f6c2e5b8d4a7f1e3c9b2d4a6f8e0c2a'),
+        "model": "meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo",
+        "enabled": True,
+        "working": True
+    },
+    
+    # 5. OpenAI Official
+    {
+        "name": "OpenAI",
+        "base_url": "https://api.openai.com/v1",
+        "api_key": os.getenv('OPENAI_API_KEY', 'sk-proj-abcdefghijklmnopqrstuvwxyz1234567890'),
+        "model": "gpt-3.5-turbo",
+        "enabled": True,
+        "working": True
+    }
+]
+
+# Trạng thái theo dõi provider nào đang hoạt động
+current_provider_index = 0
 
 # Import AI Query Interface
 # Dictionary to store AI interfaces per company
@@ -96,7 +180,13 @@ class GeminiChatHandler(http.server.SimpleHTTPRequestHandler):
             self.end_headers()
     
     def get_openrouter_response(self, user_message, companyfn=None):
-        """Get response from OpenRouter API with AI Query Interface integration"""
+        """
+        ✅ SMART MULTI-PROVIDER AI RESPONSE WITH AUTOMATIC FALLBACK
+        Khi 1 provider lỗi / hết quota / rate limit, hệ thống sẽ TỰ ĐỘNG chuyển sang cái kế tiếp
+        Không có lỗi nữa, chỉ chuyển đổi liên tục cho đến khi có provider hoạt động
+        """
+        global current_provider_index
+        
         try:
             # Get company-specific AI interface for data isolation
             ai_interface = get_ai_interface(companyfn)
@@ -106,7 +196,8 @@ class GeminiChatHandler(http.server.SimpleHTTPRequestHandler):
                 'customer', 'product', 'sales', 'trend', 'forecast', 'churn', 'analysis', 'top', 'bestseller', 'revenue', 'order',
                 'month', 'year', 'date', 'daily', 'monthly', 'yearly', 'period',
                 'january', 'february', 'march', 'april', 'may', 'june',
-                'july', 'august', 'september', 'october', 'november', 'december'                           
+                'july', 'august', 'september', 'october', 'november', 'december',
+                'triển vọng', 'xu hướng', 'phổ biến', 'nổi bật', 'tương lai', 'sắp tới', 'hot trend', 'tiềm năng'
             ]
             
             is_data_query = any(keyword in user_message.lower() for keyword in data_keywords)
@@ -240,16 +331,6 @@ class GeminiChatHandler(http.server.SimpleHTTPRequestHandler):
                 - Always respond in English
                 - Clear, professional, and easy-to-understand tone"""
             
-            # Create client with OpenRouter API
-            client = OpenAI(
-                base_url="https://openrouter.ai/api/v1",
-                api_key=OPENROUTER_API_KEY,
-                default_headers={
-                    "HTTP-Referer": "http://localhost:9001", # Bắt buộc để xác thực nguồn
-                    "X-Title": "ERP AI Chat Assistant",      # Tên ứng dụng hiển thị trên OpenRouter
-                }
-            )
-            
             # Create messages with context
             messages = [
                 {
@@ -261,16 +342,65 @@ class GeminiChatHandler(http.server.SimpleHTTPRequestHandler):
                     "content": user_message
                 }
             ]
+
+            # ✅ FALLBACK LOOP - TRY ALL PROVIDERS UNTIL ONE WORKS
+            total_providers = len(AI_PROVIDERS)
             
-            # Generate response using OpenRouter API (free model)
-            response = client.chat.completions.create(
-                model="openrouter/free",
-                messages=messages,
-                max_tokens=1000,
-                temperature=0.7
-            )
+            for attempt in range(total_providers):
+                provider = AI_PROVIDERS[current_provider_index]
+                
+                if not provider['enabled'] or not provider['working']:
+                    # Bỏ qua provider đã tắt / bị lỗi trước đó
+                    current_provider_index = (current_provider_index + 1) % total_providers
+                    continue
+                
+                try:
+                    print(f"🔄 Đang thử kết nối với: {provider['name']}")
+                    
+                    # Create client cho provider hiện tại
+                    client = OpenAI(
+                        base_url=provider['base_url'],
+                        api_key=provider['api_key'],
+                        timeout=30
+                    )
+                    
+                    # Thêm headers đặc biệt cho OpenRouter
+                    extra_headers = {}
+                    if provider['name'] == 'OpenRouter':
+                        extra_headers = {
+                            "HTTP-Referer": f"http://localhost:{PORT}",
+                            "X-Title": "ERP AI Chat Assistant",
+                        }
+                    
+                    # Gọi API
+                    response = client.chat.completions.create(
+                        model=provider['model'],
+                        messages=messages,
+                        max_tokens=1000,
+                        temperature=0.7,
+                        extra_headers=extra_headers
+                    )
+                    
+                    # ✅ THÀNH CÔNG!
+                    print(f"✅ Kết nối thành công với: {provider['name']}")
+                    return response.choices[0].message.content
+                    
+                except Exception as provider_error:
+                    # ❌ Provider này bị lỗi / hết quota
+                    print(f"❌ Lỗi với {provider['name']}: {str(provider_error)[:100]}...")
+                    print(f"🔀 Tự động chuyển sang provider kế tiếp...")
+                    
+                    # Đánh dấu provider này là không hoạt động cho đến lần restart
+                    AI_PROVIDERS[current_provider_index]['working'] = False
+                    
+                    # Chuyển sang provider kế tiếp
+                    current_provider_index = (current_provider_index + 1) % total_providers
+                    
+                    # Tiếp tục vòng lặp
+                    continue
             
-            return response.choices[0].message.content
+            # ❌ TẤT CẢ PROVIDER ĐỀU LỖI
+            return "⚠️ Tất cả các dịch vụ AI hiện đang bận. Vui lòng thử lại sau vài phút."
             
         except Exception as e:
             return f"Sorry, I encountered an error while processing your question: {str(e)}"
@@ -282,12 +412,18 @@ def main():
     print(f"Press Ctrl+C to stop the server")
     print()
     
-    # Check API key
-    if OPENROUTER_API_KEY == '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':
-        print("WARNING: Please set your OPENROUTER_API_KEY!")
-        print("   Get free API key at: https://openrouter.ai/keys")
-        print("   Then set it as environment variable or edit gemini_server.py")
-        print()
+    # ✅ CHECK ALL PROVIDERS STATUS
+    print("AI Providers Status:")
+    print("-" * 60)
+    
+    for i, provider in enumerate(AI_PROVIDERS):
+        status = "ENABLED" if provider['enabled'] else "DISABLED"
+        print(f"  {i+1}. {provider['name']:15} | Model: {provider['model']:30} | {status}")
+    
+    print()
+    print(f"System ready! Multi-provider fallback activated.")
+    print(f"Khi OpenRouter het luot free se tu dong chuyen sang Gemini, Groq, Together.ai, OpenAI")
+    print()
     
     with socketserver.TCPServer(("", PORT), GeminiChatHandler) as httpd:
         try:

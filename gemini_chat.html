@@ -13,7 +13,7 @@
         
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, 667eea 0%, #764ba2 100%);
             height: 100vh;
             display: flex;
             justify-content: center;
@@ -171,6 +171,46 @@
             animation: bounce 1.4s infinite ease-in-out;
         }
         
+        .processing-status {
+            display: none;
+            padding: 15px 20px;
+            background: white;
+            border: 1px solid #e0e0e0;
+            border-radius: 20px;
+            border-bottom-left-radius: 5px;
+            max-width: 70%;
+            align-self: flex-start;
+            margin-bottom: 20px;
+        }
+        
+        .processing-status .step {
+            padding: 4px 0;
+            opacity: 0.5;
+            transition: opacity 0.3s ease;
+        }
+        
+        .processing-status .step.active {
+            opacity: 1;
+            font-weight: 500;
+        }
+        
+        .processing-status .step.completed {
+            opacity: 0.8;
+            color: #28a745;
+        }
+        
+        .processing-status .step.completed::before {
+            content: "✅ ";
+        }
+        
+        .processing-status .step.active::before {
+            content: "🔄 ";
+        }
+        
+        .processing-status .step::before {
+            content: "⏳ ";
+        }
+        
         .typing-indicator span:nth-child(1) {
             animation-delay: -0.32s;
         }
@@ -279,6 +319,13 @@
             Thinking...
         </div>
         
+        <div class="processing-status" id="processingStatus">
+            <div class="step" id="step1">Analyzing your request</div>
+            <div class="step" id="step2">Searching database</div>
+            <div class="step" id="step3">Processing data</div>
+            <div class="step" id="step4">Generating answer</div>
+        </div>
+        
         <div class="chat-input-container">
             <div class="quick-actions">
                 <button class="quick-btn" onclick="sendQuickMessage('Explain churn prediction')">📊 Churn Prediction</button>
@@ -308,6 +355,16 @@
         const API_URL = 'http://localhost:9001/chat';
         let isProcessing = false;
         
+        // ✅ XỬ LÝ CLICK BUTTON GỢI Ý CÂU HỎI
+        document.addEventListener('click', function(e) {
+            if (e.target.tagName === 'A' && e.target.getAttribute('href') && e.target.getAttribute('href').startsWith('query:')) {
+                e.preventDefault();
+                const queryText = e.target.getAttribute('href').replace('query:', '');
+                document.getElementById('userInput').value = queryText;
+                sendMessage();
+            }
+        });
+        
         function getCurrentTime() {
             return new Date().toLocaleTimeString('en-US', {
                 hour: '2-digit',
@@ -331,11 +388,31 @@
         
         function showTypingIndicator() {
             document.getElementById('typingIndicator').style.display = 'block';
+            document.getElementById('processingStatus').style.display = 'none';
             document.getElementById('chatMessages').scrollTop = document.getElementById('chatMessages').scrollHeight;
         }
         
         function hideTypingIndicator() {
             document.getElementById('typingIndicator').style.display = 'none';
+            document.getElementById('processingStatus').style.display = 'none';
+        }
+        
+        function showProcessingStatus() {
+            document.getElementById('typingIndicator').style.display = 'none';
+            document.getElementById('processingStatus').style.display = 'block';
+            
+            // Reset all steps
+            document.querySelectorAll('.processing-status .step').forEach(step => {
+                step.className = 'step';
+            });
+            
+            // Animate steps sequentially
+            setTimeout(() => { document.getElementById('step1').className = 'step active'; }, 300);
+            setTimeout(() => { document.getElementById('step1').className = 'step completed'; document.getElementById('step2').className = 'step active'; }, 900);
+            setTimeout(() => { document.getElementById('step2').className = 'step completed'; document.getElementById('step3').className = 'step active'; }, 1500);
+            setTimeout(() => { document.getElementById('step3').className = 'step completed'; document.getElementById('step4').className = 'step active'; }, 2200);
+            
+            document.getElementById('chatMessages').scrollTop = document.getElementById('chatMessages').scrollHeight;
         }
         
         function showError(message) {
@@ -369,8 +446,8 @@
             addMessage(message, true);
             userInput.value = '';
             
-            // Show typing indicator
-            showTypingIndicator();
+            // Show processing status indicator
+            showProcessingStatus();
             
             try {
                 const response = await fetch(API_URL, {

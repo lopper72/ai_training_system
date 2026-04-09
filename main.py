@@ -8,6 +8,9 @@ import argparse
 import sys
 from datetime import datetime
 
+if sys.platform == 'win32':
+    sys.stdout.reconfigure(encoding='utf-8')
+
 # Logging configuration
 logging.basicConfig(
     level=logging.INFO,
@@ -38,21 +41,104 @@ def run_extraction(args):
         date_to = args.date_to
         logger.info(f"Using custom date range: {date_from} to {date_to}")
     
-    # Extract
+    # Extract raw data
     df_main = extractor.extract_sales_main(date_from=date_from, date_to=date_to)
     df_data = extractor.extract_sales_data(date_from=date_from, date_to=date_to)
     
-    # Transform
+    # Extract AI datasets
+    df_customer = extractor.extract_customer_analysis_data(date_from=date_from, date_to=date_to)
+    df_product = extractor.extract_product_analysis_data(date_from=date_from, date_to=date_to)
+    df_trend = extractor.extract_sales_trend_data(date_from=date_from, date_to=date_to)
+    df_retention = extractor.extract_customer_retention_data(lookback_days=None)
+    df_revenue = extractor.extract_date_revenue_data(date_from=date_from, date_to=date_to)
+    
+    # Transform raw data
     df_main_clean = transformer.clean_sales_main(df_main)
     df_data_clean = transformer.clean_sales_data(df_data)
     
-    # Save
+    # Transform AI datasets
+    df_customer_clean = transformer.transform_customer_analysis(df_customer)
+    try:
+        df_product_clean = transformer.transform_product_analysis(df_product)
+    except Exception as e:
+        logger.error(f"Error in Product module: {str(e)}")
+        df_product_clean = None
+    df_trend_clean = transformer.transform_sales_trend(df_trend)
+    df_retention_clean = transformer.transform_customer_retention(df_retention)
+    try:
+        df_revenue_clean = transformer.transform_date_revenue(df_revenue)
+    except Exception as e:
+        logger.error(f"Error in Revenue module: {str(e)}")
+        df_revenue_clean = None
+    
+    # Save raw data
     transformer.save_transformed_data(df_main_clean, 'data/processed/sales_main.parquet')
     transformer.save_transformed_data(df_data_clean, 'data/processed/sales_data.parquet')
+    
+    # Save AI datasets
+    if df_customer_clean is not None:
+        transformer.save_transformed_data(df_customer_clean, 'data/processed/customer_analysis.parquet')
+    if df_product_clean is not None:
+        transformer.save_transformed_data(df_product_clean, 'data/processed/product_analysis.parquet')
+    if df_trend_clean is not None:
+        transformer.save_transformed_data(df_trend_clean, 'data/processed/sales_trend.parquet')
+    if df_retention_clean is not None:
+        transformer.save_transformed_data(df_retention_clean, 'data/processed/customer_retention.parquet')
+    if df_revenue_clean is not None:
+        transformer.save_transformed_data(df_revenue_clean, 'data/processed/revenue_report_by_date.parquet')
     
     extractor.close()
     
     logger.info(f"Extraction completed: {len(df_main)} main, {len(df_data)} detail records")
+
+
+def run_trend_analysis(args):
+    """Run product trend analysis and generate top 10 potential products"""
+    from src.extractors.sales_extractor import SalesExtractor
+    from src.analysis.product_trend_analyzer import ProductTrendAnalyzer
+    import json
+    
+    logger.info("=== Bắt đầu phân tích xu hướng sản phẩm ===")
+    
+    with SalesExtractor() as extractor:
+        analyzer = ProductTrendAnalyzer(extractor)
+        
+        result = analyzer.analyze_product_trends(
+            companyfn=args.companyfn,
+            days_history=args.days,
+            top_n=args.top
+        )
+        
+        if result['status'] == 'success':
+            print("\n" + "="*60)
+            print("✅ PHÂN TÍCH XU HƯỚNG THÀNH CÔNG")
+            print("="*60)
+            print(f"📅 Thời gian phân tích: {result['analysis_period']['days_analyzed']} ngày")
+            print(f"📊 Tổng sản phẩm phân tích: {result['total_products_analyzed']}")
+            print(f"📈 Xu hướng thị trường chung: {result['overall_market_trend']['average_product_growth']}%")
+            print("\n🏆 TOP 10 SẢN PHẨM TRIỂN VỌNG NHẤT:")
+            print("-"*60)
+            
+            for idx, product in enumerate(result['top_potential_products'], 1):
+                print(f"\n{idx}. {product['stkcode_desc']}")
+                print(f"   Mã: {product['stkcode_code']} | Nhóm: {product['stkcate_desc']}")
+                print(f"   ⭐ Điểm triển vọng: {product['potential_score']}/100")
+                print(f"   📈 Tăng trưởng: {round(product['growth_rate']*100, 1)}% | Đà tăng: {round(product['momentum'], 2)}x")
+                print(f"   💰 Doanh thu: {int(product['total_revenue']):,} | Đơn hàng: {product['transactions_count']}")
+            
+            # Lưu kết quả ra file
+            output_file = f'data/analysis/product_trends_{datetime.now().strftime("%Y%m%d_%H%M%S")}.json'
+            with open(output_file, 'w', encoding='utf-8') as f:
+                json.dump(result, f, ensure_ascii=False, indent=2)
+            
+            print("\n" + "-"*60)
+            print(f"💾 Kết quả chi tiết đã được lưu tại: {output_file}")
+            print("="*60)
+            
+        else:
+            logger.warning("Không có dữ liệu để phân tích")
+    
+    return result
 
 
 def run_training(args):
@@ -165,9 +251,15 @@ def main():
     query_parser.add_argument('--interactive', '-i', action='store_true',
                              help='Interactive mode')
     
+    # Trend Analysis command
+    trend_parser = subparsers.add_parser('trend', help='Phân tích xu hướng sản phẩm và top 10 triển vọng')
+    trend_parser.add_argument('--days', '-d', type=int, default=90, help='Số ngày lịch sử phân tích (mặc định 90)')
+    trend_parser.add_argument('--top', '-t', type=int, default=10, help='Số sản phẩm top cần lấy (mặc định 10)')
+    trend_parser.add_argument('--companyfn', '-c', help='Mã công ty (tùy chọn)')
+
     # Scheduled command
     scheduled_parser = subparsers.add_parser('scheduled', help='Run scheduled training')
-    
+
     # Parse arguments
     args = parser.parse_args()
     
@@ -182,6 +274,8 @@ def main():
             run_training(args)
         elif args.command == 'query':
             run_query(args)
+        elif args.command == 'trend':
+            run_trend_analysis(args)
         elif args.command == 'scheduled':
             run_scheduled(args)
         else:
