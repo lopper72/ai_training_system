@@ -101,7 +101,9 @@ class SalesExtractor:
                     sendby_desc,
                     notes_memo,
                     tag_void_yn,
-                    salestaxpct
+                    salestaxpct,
+                    tag_closed02_yn,
+                    tag_deleted_yn
                 FROM scm_sal_main
                 WHERE 1=1
             """
@@ -216,7 +218,9 @@ class SalesExtractor:
                     notes_memo,
                     tag_void_yn,
                     tag_item_taxable_yn,
-                    tag_closedmain_yn
+                    tag_closedmain_yn,
+                    tag_closed02_yn,
+                    tag_deleted_yn
                 FROM scm_sal_data
                 WHERE 1=1
             """

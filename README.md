@@ -268,11 +268,11 @@ Logs are stored in `logs/`:
 3. Update scheduled training if needed
 4. Add query handler in `ai_query_interface.py`
 
-### Adding new query type:
+### Extending AI query capability:
 
-1. Add keywords in `_classify_query()`
-2. Create handler method `_handle_xxx_query()`
-3. Add to `process_query()`
+1. Update prompt rules in `src/query/pandas_agent.py` (`AGENT_PREFIX`, `AGENT_FORMAT_INSTRUCTIONS`)
+2. Update schema/context in `src/query/data_context.py`
+3. Keep `src/query/ai_query_interface.py` as hybrid planner-first orchestration
 
 ## Troubleshooting
 

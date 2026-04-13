@@ -1,9 +1,10 @@
 # Data processing files
-data/processed/
-data/raw/
+data/processed/*
+data/raw/*
 
 # Log files
 logs/
+*.log
 
 # Python
 __pycache__/
@@ -11,11 +12,23 @@ __pycache__/
 *$py.class
 *.so
 .Python
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.ipynb_checkpoints/
 env/
 venv/
 ENV/
 env.bak/
 venv.bak/
+
+# Local runtime/temp artifacts
+temp_*
+*.tmp
+*.bak
+test_out.txt
+test_summary.txt
+.env
 
 # IDE
 .vscode/

@@ -34,3 +34,13 @@ colorlog>=6.7.0
 
 # AI Chat - OpenAI
 openai>=1.0.0
+
+# LangChain - AI Agent (Text-to-Pandas)
+langchain>=0.2.0
+langchain-experimental>=0.0.60
+langchain-openai>=0.1.0
+langchain-groq>=0.1.0
+tabulate>=0.9.0
+duckduckgo-search>=6.0.0
+ddgs>=0.1.0
+python-dotenv>=1.0.0

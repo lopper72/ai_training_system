@@ -1,0 +1,214 @@
+================================================================================
+AI QUERY — TÀI LIỆU THEO TỪNG FILE (phụ + chính: tác dụng, biến, hàm, chỗ đứng trong pipeline)
+================================================================================
+Phạm vi: `gemini_server.py`, `config/query_engine.json`, `src/query/*.py`, dữ liệu
+`data/processed/` (ưu tiên `sales_data`, `sales_main`).
+
+Luồng chạy tuần tự (từ HTTP đến câu trả lời) nằm ở file riêng:
+  → `AI_QUERY_LUONG_CHAY_HE_THONG.txt`
+
+File này dùng khi bạn cần biết: file X làm gì, có biến/hàm nào, được gọi từ đâu.
+
+
+--------------------------------------------------------------------------------
+1. FILE PHỤ (RÂU RIA) — TÁC DỤNG, HÀM CHÍNH, AI GỌI
+--------------------------------------------------------------------------------
+
+src/query/query_normalization.py
+  Tác dụng: Chuẩn hóa câu trước khi vào các nhánh lớn. Nếu câu “nhạy thời gian”
+  nhưng không nói kỳ rõ, có thể nối thêm dòng [System context: dùng năm …].
+  Bật/tắt: `default_year_when_unspecified` trong `query_engine.json`.
+  Hàm công khai: `has_explicit_time_period`, `apply_default_year_if_vague`.
+  Ai gọi: `AIQueryInterface.process_query` (sau `_resolve_contextual_query`).
+
+src/query/churn_deterministic.py
+  Tác dụng: Churn MoM/YoY cố định trên `sales_main`, không qua LLM.
+  Hàm: `valid_sales_main`, `parse_churn_query`, `compute_churn_result` (+ helper tập party theo tháng/năm).
+  Ai gọi: `AIQueryInterface._try_deterministic_churn`; `QueryExecutor._compare_churn` (template).
+
+src/query/response_auditor.py
+  Tác dụng: (1) `audit`: sau agent — JSON groundedness, polished_answer (enable_llm_response_auditor).
+  (2) `synthesize_chain`: sau planner multi-step — một câu trả lời ERP từ execution_history
+  (chỉ summary từng bước); quy tắc chống hallucination, giữ đơn vị tiền tệ/định dạng số,
+  bullet Markdown cho danh sách; EMPTY_EXECUTION_MESSAGE khi không có dữ liệu.
+  Hằng: `AUDITOR_SYSTEM`, `SYNTHESIS_SYSTEM`, `EMPTY_EXECUTION_MESSAGE`.
+  Class `ResponseAuditor`: `audit`, `synthesize_chain`, `_synthesis_fallback`, `_parse_json`, `_passthrough`.
+  Ai gọi: `AIQueryInterface.process_query` (audit agent); `_maybe_synthesize_multi_step_result`
+  (khi enable_multi_step_synthesis và query_type multi_step).
+
+src/query/intent_codes.py
+  Tác dụng: Mã intent chuẩn UPPER_SNAKE (DATA_QUERY, TOP_PRODUCTS, GET_REVENUE, UNKNOWN, …),
+  `canonical_intent`, `query_type_for_intent`, tập ROUTER / EXECUTOR / PLANNER.
+  Ai gọi: router, planner, validator, executor, interface.
+
+src/query/llm_engine.py
+  Tác dụng: Tạo ChatGroq dùng chung cho planner, router, agent, auditor.
+  Hằng: `DEFAULT_MODEL`, `DEFAULT_MAX_TOKENS` (đọc từ env).
+  Hàm: `get_llm`, `test_llm_connection`.
+  Biến môi trường: `GROQ_API_KEY` (bắt buộc), `GROQ_MODEL`, `GROQ_MAX_TOKENS`.
+  Ai gọi: `AIQueryInterface._init_agent` (import lazy).
+
+src/query/web_search_tool.py
+  Tác dụng: Tool tên `market_web_search` gắn vào pandas agent (DuckDuckGo / TOP_GLOBAL).
+  Ai gọi: `PandasQueryAgent._build_agent` khi import tool thành công.
+
+src/query/__init__.py
+  Tác dụng: Package marker, không logic query.
+
+
+--------------------------------------------------------------------------------
+2. FILE CHÍNH — CHI TIẾT TỪNG FILE
+--------------------------------------------------------------------------------
+
+--- 2.1 gemini_server.py ---
+
+Vai trò: Cổng HTTP (9001): `/health`, `/metrics`, `POST /chat`, phục vụ static
+`gemini_chat.html`. English gate lần 1 trước `process_query`.
+
+Vị trí pipeline: Điểm vào/ra cho UI; gọi `AIQueryInterface.process_query` và `format_response`.
+
+Hàm / class: get_ai_interface, GeminiChatHandler (POST /chat, get_agent_response), main()
+
+
+--- 2.2 ai_query_interface.py ---
+
+Vai trò: Điều phối: session + năm mặc định → English gate → IntentRouter List[IntentPayload] →
+nếu toàn intent template: QueryPlanner + QueryExecutor (+ synthesis multi-step) →
+nếu không: execution_plan xuống agent; churn; agent; audit (agent); history; format_response.
+
+Class AIQueryInterface — thuộc tính:
+  data_path, companyfn, query_history
+  _pandas_agent, _data_context, _schema_hint
+  _query_planner, _query_executor, _query_validator, _llm, _config
+  _query_log_dir, _query_log_base, _query_log_max_bytes
+  _session_memory (theo session_id)
+
+Phương thức chính:
+  _init_agent, _loaded_non_empty_datasets
+  _prepare_router_and_schema — IntentRouter.route → List[IntentPayload]; merge_target_files;
+    payloads_to_agent_route_dict
+  process_query_with_agent — router_meta gồm intent_payloads, execution_plan
+  process_query — nhánh planner (payload_snapshots, route_snapshot, _payloads_allow_deterministic_template,
+    _run_planner_and_executor, _maybe_synthesize_multi_step_result, template_executor_unsatisfied),
+    churn, agent
+  _maybe_synthesize_multi_step_result — ResponseAuditor.synthesize_chain
+  _payloads_allow_deterministic_template, _minimal_multi_plan_from_payloads, _run_planner_and_executor
+  _try_deterministic_churn, _is_plan_semantically_compatible
+  _resolve_contextual_query, _update_session_memory (hỗ trợ data.final cho multi-step)
+  _append_history, format_response (kể cả data.steps cho multi_step)
+  get_query_history, get_runtime_metrics
+
+
+--- 2.3 intent_payload.py ---
+
+Vai trò: Dataclass một bước sau IntentRouter: intent_code, target_files, task_type,
+rationale, top_n, time, step_id, sub_query, params (filter gợi ý party_desc, stkcode_desc, …).
+to_dict / from_dict / from_legacy_router_dict.
+
+Ai gọi: IntentRouter; AIQueryInterface; QueryPlanner (router_payloads).
+
+
+--- 2.4 catalog.py ---
+
+Vai trò: Allowlist dataset + cột (CATALOG); PRIORITY_DATASETS; validate_router_targets;
+is_catalog_dataset; filter_to_catalog_datasets.
+
+Ai gọi: DataContext, IntentRouter, QueryExecutor (_step_passes_catalog_security).
+
+
+--- 2.5 data_context.py ---
+
+Vai trò: Đọc parquet; lọc companyfn; schema theo catalog + targets.
+
+Ai gọi: _init_agent; schema cho agent/planner.
+
+
+--- 2.6 intent_router.py ---
+
+Vai trò: LLM trả JSON `intents`[] (hoặc object một intent cũ). Mỗi intent → IntentPayload.
+Có params, sub_query, step_id. Fallback: List một phần tử UNKNOWN.
+Các static: fallback_for_loaded, merge_target_files, payloads_to_legacy_route_dict,
+payloads_to_agent_route_dict(payloads, execution_plan=None).
+
+Ai gọi: AIQueryInterface.process_query, _prepare_router_and_schema.
+
+
+--- 2.7 pandas_agent.py ---
+
+Vai trò: LangChain pandas dataframe agent; prompt có schema + Router JSON + execution_plan (nếu có).
+
+Ai gọi: process_query_with_agent.
+
+
+--- 2.8 query_executor.py ---
+
+Vai trò: Template pandas theo intent UPPER_SNAKE; execute(plan): nếu steps > 1 → execute_chained
+(execution_state, dependency_source, _step_passes_catalog_security, chain_complete / partial failure);
+một step → _execute_single. _apply_plan_filters; binding top_product / top_customer / party_desc.
+Hàm: _valid_sales, _apply_time, các handler intent (DATA_QUERY, TOP_PRODUCTS, GET_REVENUE, …).
+
+Ai gọi: _run_planner_and_executor.
+
+
+--- 2.9 query_planner.py ---
+
+Vai trò: LLM sinh plan { steps[], confidence }; mỗi step: intent, dependency_source,
+filters, time, target_files, params, … PLANNER_SYSTEM_PROMPT, PLANNER_PARAM_SINGLE (một intent cố định),
+PLANNER_MULTI (nhiều payload). build_router_only_execution_plan(payloads) static — không cần LLM.
+
+Ai gọi: _run_planner_and_executor; fallback agent khi không đủ template.
+
+
+--- 2.10 query_validator.py ---
+
+Vai trò: validate_plan (hỗ trợ plan có steps[] hoặc plan phẳng); validate_template_plan
+(mọi step ∈ EXECUTOR_INTENT_CODES). validate_agent_answer (ít dùng từ interface).
+
+Ai gọi: _run_planner_and_executor.
+
+
+--- 2.11 query_config.py + config/query_engine.json ---
+
+query_config.py: DEFAULT_CONFIG, load_query_config — merge JSON đè default.
+
+Khóa tiêu biểu:
+  enable_intent_planner — nhánh planner-first
+  planner_min_confidence — sau QueryPlanner.plan
+  agent_timeout_seconds — agent (clamp 5..120)
+  executor_max_runtime_retries — agent (clamp 1..8)
+  enable_llm_response_auditor — audit sau agent thành công
+  enable_multi_step_synthesis — synthesize_chain sau planner multi_step (mặc định true)
+  default_year_when_unspecified
+  allowed_intents — intent UPPER_SNAKE + UNKNOWN; known_columns
+
+
+--------------------------------------------------------------------------------
+3. GỢI Ý CHỈNH SỬA AN TOÀN
+--------------------------------------------------------------------------------
+
+- Timeout agent: query_engine.json → agent_timeout_seconds.
+- Prompt agent: pandas_agent.py (AGENT_CORE).
+- Phân rã intent / compound: ROUTER_SYSTEM_TEMPLATE intent_router.py; PLANNER_MULTI query_planner.py.
+- Chuỗi bước / dependency: query_planner + query_executor execute_chained.
+- Tổng hợp câu trả lời multi-step: response_auditor.py SYNTHESIS_SYSTEM + enable_multi_step_synthesis.
+- Allowlist: catalog.py.
+- Session: _resolve_contextual_query + _update_session_memory.
+
+
+--------------------------------------------------------------------------------
+4. format_response — LOG
+--------------------------------------------------------------------------------
+
+4.1 AIQueryInterface.format_response(result)
+  error → "Error: …"
+  data.latest_records, top_customers_for_top_product, data.rows
+  query_type multi_step + data.steps → nhiều khối "--- Step i ---"
+  source langchain_agent → summary
+  deterministic_executor / planner_executor / deterministic_churn → summary
+
+4.2 Log JSONL — query_history_*.jsonl như cũ.
+
+
+================================================================================
+HẾT — xem luồng chạy tại: AI_QUERY_LUONG_CHAY_HE_THONG.txt
+================================================================================

@@ -251,7 +251,7 @@
         <div class="chat-header">
             <button class="clear-btn" onclick="clearChat()">🗑️ Clear chat</button>
             <h1>🤖 ERP AI Chat Assistant</h1>
-           
+            <p>Ask in English — answers are in English. Vague time ranges default to the current year in the pipeline.</p>
         </div>
         
         <div class="chat-messages" id="chatMessages">
@@ -294,7 +294,7 @@
                 <input 
                     type="text" 
                     id="userInput" 
-                    placeholder="Enter your question..."
+                    placeholder="Ask in English (e.g. top 5 customers by revenue in 2010)..."
                     onkeypress="handleKeyPress(event)"
                 >
                 <button id="sendButton" onclick="sendMessage()">
@@ -307,6 +307,8 @@
     <script>
         const API_URL = 'http://localhost:9001/chat';
         let isProcessing = false;
+        let pendingRequestId = null;
+        let activeController = null;
         
         function getCurrentTime() {
             return new Date().toLocaleTimeString('en-US', {
@@ -358,12 +360,13 @@
         
         async function sendMessage() {
             const userInput = document.getElementById('userInput');
+            const sendButton = document.getElementById('sendButton');
             const message = userInput.value.trim();
             
             if (!message || isProcessing) return;
             
             isProcessing = true;
-            document.getElementById('sendButton').disabled = true;
+            sendButton.disabled = true;
             
             // Add user message
             addMessage(message, true);
@@ -371,6 +374,13 @@
             
             // Show typing indicator
             showTypingIndicator();
+
+            // Cancel older in-flight request to avoid stale replies
+            if (activeController) {
+                activeController.abort();
+            }
+            activeController = new AbortController();
+            pendingRequestId = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
             
             try {
                 const response = await fetch(API_URL, {
@@ -378,10 +388,16 @@
                     headers: {
                         'Content-Type': 'application/json',
                     },
-                    body: JSON.stringify({ message: message })
+                    body: JSON.stringify({ message: message, request_id: pendingRequestId }),
+                    signal: activeController.signal,
                 });
                 
                 const data = await response.json();
+
+                // Ignore stale responses that don't match current request
+                if ((data.request_id || null) !== pendingRequestId) {
+                    return;
+                }
                 
                 hideTypingIndicator();
                 
@@ -393,12 +409,17 @@
                 }
                 
             } catch (error) {
+                if (error && error.name === 'AbortError') {
+                    return;
+                }
                 hideTypingIndicator();
                 showError('Cannot connect to server. Please try again.');
                 addMessage('Sorry, I cannot connect to the server. Please check your network connection and try again.', false);
             } finally {
                 isProcessing = false;
-                document.getElementById('sendButton').disabled = false;
+                pendingRequestId = null;
+                activeController = null;
+                sendButton.disabled = false;
                 userInput.focus();
             }
         }

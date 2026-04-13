@@ -1,0 +1,234 @@
+================================================================================
+AI QUERY — LUỒNG CHẠY HỆ THỐNG (logic vận hành từ request đến câu trả lời)
+================================================================================
+Tài liệu này mô tả thứ tự thực thi và quyết định nhánh — không liệt kê đầy đủ
+từng biến/hàm trong từng file. Muốn tra cứu theo file, đọc:
+  → AI_QUERY_TAI_LIEU_CAC_FILE.txt
+
+Phạm vi: `gemini_server.py` + `AIQueryInterface` + IntentRouter (multi-intent) +
+QueryPlanner (steps + dependency) + QueryExecutor (chuỗi bước) + ResponseAuditor
+(synthesis) + churn + PandasQueryAgent.
+
+
+--------------------------------------------------------------------------------
+0. TÓM TẮT MỘT DÒNG
+--------------------------------------------------------------------------------
+POST /chat → (English?) → process_query → (English lần 2?) →
+  [planner bật: IntentRouter List[IntentPayload] → nếu toàn intent template:
+    QueryPlanner(steps) → QueryExecutor → [synthesis multi-step?]] →
+  nếu không đủ template / UNKNOWN: churn? → agent (ReAct + execution_plan?) →
+  [auditor agent?] → format_response → JSON.
+
+
+--------------------------------------------------------------------------------
+1. KHỞI ĐỘNG SERVER
+--------------------------------------------------------------------------------
+main() bind TCP cổng 9001, handler xử lý GET/POST. Cache `ai_interfaces` rỗng cho
+đến khi có request /chat cần `get_ai_interface(companyfn)`.
+
+
+--------------------------------------------------------------------------------
+2. POST /chat — TRƯỚC KHI VÀO AIQueryInterface
+--------------------------------------------------------------------------------
+2.1 Parse body JSON
+  message (bắt buộc cho luồng chat), companyfn (tùy chọn, lọc dữ liệu),
+  session_id hoặc conversation_id (nhớ ngữ cảnh), request_id (echo lại).
+
+2.2 session_id
+  Thứ tự: body → header X-Session-Id → địa chỉ IP client.
+
+2.3 English gate (lần 1 — trên message gốc, trong gemini_server)
+  Điều kiện: có ký tự Latin A–z VÀ không có ký tự Unicode ord > 127.
+  Không đạt: HTTP 200, response cố định chính sách ngôn ngữ, meta.source = language_policy.
+  Không gọi process_query. KẾT THÚC request.
+
+2.4 Đạt English
+  get_ai_interface(companyfn) — một instance AIQueryInterface mỗi companyfn (None là key riêng).
+  get_agent_response → context = { companyfn, session_id } → process_query(message, context).
+
+
+--------------------------------------------------------------------------------
+3. process_query — CHUẨN BỊ CÂU VÀ KHỞI TẠO LƯỜI
+--------------------------------------------------------------------------------
+3.1 _resolve_contextual_query
+  Nếu có session_id và câu kiểu “that product / the product above / …”:
+  ghép gợi ý từ _session_memory (last_top_product, last_period).
+
+3.2 default_year_when_unspecified (config true)
+  apply_default_year_if_vague: câu nhạy thời gian nhưng không nói kỳ → nối
+  [System context: dùng năm hiện tại …].
+
+3.3 _init_agent (lần đầu cần _query_executor)
+  DataContext đọc sales_data / sales_main; load_query_config; QueryExecutor + QueryValidator.
+  Thử get_llm: thành công → QueryPlanner + PandasQueryAgent; thất bại → _llm None,
+  planner và agent None nhưng executor (và validator) vẫn có nếu đã load được data.
+
+
+--------------------------------------------------------------------------------
+4. English gate (lần 2 — trên resolved_query)
+--------------------------------------------------------------------------------
+Cùng rule Latin / non-ASCII như server.
+Không đạt: dict source language_policy, ghi history, return. KẾ THÚC (trong interface).
+
+
+--------------------------------------------------------------------------------
+5. NHÁNH A — PLANNER-FIRST (enable_intent_planner, mặc định true)
+--------------------------------------------------------------------------------
+Điều kiện: enable_intent_planner === true VÀ _query_executor (+ validator); planner LLM
+tùy chọn nhưng router cần LLM để phân rã (không LLM → fallback UNKNOWN → nhánh agent).
+
+5.1 IntentRouter.route(query, loaded) → List[IntentPayload]
+  Mỗi payload: intent_code (UPPER_SNAKE, ví dụ TOP_PRODUCTS, DATA_QUERY, UNKNOWN),
+  target_files, task_type, rationale, top_n, time, step_id, sub_query, params (filter gợi ý).
+  JSON LLM: { "intents": [ ... ] } hoặc object một intent cũ (tương thích ngược).
+  Lỗi / không LLM: fallback_for_loaded → một payload UNKNOWN + target_files ưu tiên.
+
+5.2 Phân nhánh template vs agent (trong process_query)
+  _payloads_allow_deterministic_template: mọi intent ∈ allowed_intents config VÀ ∈
+  EXECUTOR_INTENT_CODES (không UNKNOWN).
+  - Nếu ĐÚNG: route_snapshot = payloads_to_agent_route_dict(payloads) (chưa có execution_plan).
+  - Nếu SAI (có UNKNOWN hoặc intent không cho phép): gọi QueryPlanner.plan (nếu có LLM)
+    hoặc build_router_only_execution_plan; route_snapshot kèm execution_plan cho agent sau này.
+
+5.3 Chỉ khi _payloads_allow_deterministic_template === true — chạy template
+  _run_planner_and_executor(query, route_snapshot, payload_snapshots):
+  5.3.1 QueryPlanner.plan(query, companyfn, router_payloads, router_context)
+       → { steps: [...], confidence } (mỗi step: intent, dependency_source?, filters,
+       time, target_files, params, …).
+  5.3.2 Fallback: _minimal_multi_plan_from_payloads nếu plan None.
+  5.3.3 QueryValidator.validate_template_plan — mọi step intent thực thi được (không UNKNOWN).
+  5.3.4 Với mỗi step: _is_plan_semantically_compatible(sub_query hoặc query, plan một intent).
+  5.3.5 confidence < planner_min_confidence → None (rơi template_unsatisfied nếu đã vào nhánh).
+  5.3.6 QueryExecutor.execute(plan):
+       - plan có 1 step → một intent template.
+       - plan có ≥2 steps → execute_chained: execution_state, dependency_source (lọc bước sau),
+         _step_passes_catalog_security; có thể chain_complete false + chain_failure_reason.
+  5.3.7 Kết quả truthy: source planner_executor, query_type multi_step hoặc intent đơn;
+       data có thể có steps, final, execution_state.
+  5.3.8 _maybe_synthesize_multi_step_result: nếu query_type == multi_step và
+       enable_multi_step_synthesis và có LLM → ResponseAuditor.synthesize_chain
+       (chỉ summary từng bước → execution_history trong prompt; không gửi full DataFrame).
+
+5.4 Template không cho kết quả (planned_result is None sau _run_planner_and_executor)
+  Trả về source template_executor_unsatisfied (không gọi agent nếu vẫn “toàn intent template”
+  nhưng plan/execute thất bại).
+
+5.5 Lưu ý: Nếu bước 5.2 đã chọn agent (không đủ template), không chạy 5.3; route_snapshot
+  có thể đã có execution_plan — xuống nhánh churn rồi agent với precomputed_route.
+
+
+--------------------------------------------------------------------------------
+6. NHÁNH B — CHURN DETERMINISTIC
+--------------------------------------------------------------------------------
+Chạy sau khi nhánh template không trả kết quả thỏa (hoặc không vào template).
+
+6.1 parse_churn_query(query) — cần từ churn + kỳ (MM/YYYY, YYYY-MM, hoặc năm cho YoY).
+
+6.2 sales_main trong executor phải có dữ liệu; compute_churn_result.
+
+6.3 Có kết quả → dict source deterministic_churn, session memory, history, return. KẾ THÚC.
+
+
+--------------------------------------------------------------------------------
+7. NHÁNH C — PANDAS AGENT (FALLBACK / UNKNOWN / KHÔNG TEMPLATE)
+--------------------------------------------------------------------------------
+7.1 _loaded_non_empty_datasets — dataset có ít nhất một dòng.
+
+7.2 Chuẩn bị route (nếu planner bật đã có route_snapshot từ 5.2)
+  intent_payloads, target_files (merge), execution_plan (nếu có), gắn schema theo targets.
+  Nếu không planner: _prepare_router_and_schema → route từ IntentRouter.route → List →
+  payloads_to_agent_route_dict.
+
+7.3 validate_router_targets — chỉ dataset trong catalog và đang load; thứ tự ưu tiên
+  sales_data trước sales_main khi cả hai được chọn.
+
+7.4 get_schema_description(targets)
+
+7.5 router_meta: intent_code, target_files, task_type, rationale, intent_payloads, execution_plan.
+  Prompt agent có thể thêm dòng Execution plan (multi-step) nếu execution_plan có.
+
+7.6 ThreadPoolExecutor + timeout (agent_timeout_seconds, clamp 5..120).
+
+7.7 Trong agent.query — ReAct như cũ; rate limit retry invoke.
+
+
+--------------------------------------------------------------------------------
+8. SAU AGENT — GÓI KẾT QUẢ CHO HTTP
+--------------------------------------------------------------------------------
+8.1 agent_result.success True
+  Tuỳ chọn ResponseAuditor.audit: enable_llm_response_auditor — polished_answer (không dùng
+  synthesize_chain; synthesize_chain chỉ cho nhánh planner multi_step).
+
+8.2 _is_rate_limit_error → rate_limited.
+
+8.3 no_data / timeout / parse_error → source no_data hoặc tương ứng.
+
+8.4 Exception bọc ngoài → system_error.
+
+
+--------------------------------------------------------------------------------
+9. TRẢ VỀ HTTP (gemini_server — sau process_query)
+--------------------------------------------------------------------------------
+9.1 terminal_parquet_and_df_map_line() — map df1/df2 theo thứ tự load priority.
+
+9.2 _print_data_path_hint(ai_result) — gợi ý nguồn trả lời.
+
+9.3 format_response(ai_result) — hỗ trợ data.steps (multi_step), latest_records, rows, …
+
+9.4 JSON response: success, response (string), request_id, meta (source, query_type, …).
+
+
+--------------------------------------------------------------------------------
+10. LUỒNG ĐẦY ĐỦ: CHECKLIST
+--------------------------------------------------------------------------------
+F1  Client POST /chat.
+F2  English (server)?  Không → language_policy, END.
+F3  get_ai_interface → process_query.
+F4  Session + default year + _init_agent lần đầu.
+F5  English (interface)?  Không → language_policy, END.
+F6  Planner bật?
+    F6a Router → List[IntentPayload].
+    F6b Mọi intent đều template-safe?
+        Có → QueryPlanner → validate_template_plan → execute (đơn hoặc chuỗi) →
+             [synthesize multi_step?] → planner_executor, END (hoặc template_executor_unsatisfied).
+        Không → route_snapshot có execution_plan → xuống F7/F8.
+F7  Churn khớp? → deterministic_churn, END.
+F8  Agent với route/execution_plan (precomputed nếu có) → [audit?] → langchain_agent → END.
+    Rate limit / lỗi → rate_limited / no_data → END.
+
+
+--------------------------------------------------------------------------------
+11. SƠ ĐỒ NHÁNH (ASCII) — TÓM TẮT
+--------------------------------------------------------------------------------
+
+  POST /chat
+    |
+    +-- English (server)? --no--> language_policy ========================== END
+    |
+    process_query
+      |
+      +-- English (interface)? --no--> language_policy ===================== END
+      |
+      +-- planner on?
+            |
+            +-- route → List[IntentPayload]
+            |
+            +-- all template-safe intents?
+                  |
+                  yes → plan(steps) → execute → [synthesis?] → planner_executor === END
+                  |       (fail plan/exec) → template_executor_unsatisfied ======= END
+                  |
+                  no  → (execution_plan cho agent) ----------------------+
+                                                                        |
+      +-------------------------------------------------------------------+
+      |
+      +-- churn match? --yes--> deterministic_churn ====================== END
+      |
+      +-- agent + schema + (intent_payloads, execution_plan?) → [audit?] → langchain_agent
+            |
+            +-- OK / rate / no_data → format_response ----------------------> END
+
+
+================================================================================
+HẾT — tra cứu biến/hàm theo file: AI_QUERY_TAI_LIEU_CAC_FILE.txt
+================================================================================

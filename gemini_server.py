@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 """
-AI Chat Server - Backend for AI Chat Interface (OpenRouter Version)
+AI Chat Server - Backend for AI Chat Interface (LangChain + Groq)
 Integrated with AI Training System
 """
 
@@ -9,18 +9,47 @@ import socketserver
 import json
 import os
 import sys
-from openai import OpenAI
-from datetime import datetime
+import re
 
 # Add root directory to path to import modules
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 PORT = 9001
 
-# Configure OpenRouter API
-# You need to set your API key here or use environment variable
-# Get free API key at: https://openrouter.ai/keys
-OPENROUTER_API_KEY = os.getenv('OPENROUTER_API_KEY', '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')
+# ANSI: bright red diagnostics so [AIQuery] lines stand out in the terminal.
+_STYLE_RED = "\033[91m"
+_STYLE_RESET = "\033[0m"
+
+
+def _enable_windows_console_ansi() -> None:
+    """Enable VT100 escape sequences in classic Windows console (PowerShell/CMD)."""
+    if sys.platform != "win32":
+        return
+    try:
+        import ctypes
+
+        kernel32 = ctypes.windll.kernel32  # type: ignore[attr-defined]
+        handle = kernel32.GetStdHandle(-11)
+        mode = ctypes.c_uint32()
+        if kernel32.GetConsoleMode(handle, ctypes.byref(mode)) == 0:
+            return
+        enable_vt = 0x0004
+        if kernel32.SetConsoleMode(handle, mode.value | enable_vt) == 0:
+            return
+    except Exception:
+        pass
+
+
+def _print_aiquery_diag(message: str) -> None:
+    """Print server-side [AIQuery] hints in a distinct color when stdout is a TTY."""
+    line = (message or "").rstrip("\n")
+    if not line:
+        return
+    if sys.stdout.isatty():
+        print(f"{_STYLE_RED}{line}{_STYLE_RESET}", flush=True)
+    else:
+        print(line, flush=True)
+
 
 # Import AI Query Interface
 # Dictionary to store AI interfaces per company
@@ -39,9 +68,63 @@ def get_ai_interface(companyfn=None):
             return None
     return ai_interfaces[companyfn]
 
-AI_INTERFACE_AVAILABLE = True
-
 class GeminiChatHandler(http.server.SimpleHTTPRequestHandler):
+    def end_headers(self):
+        # Disable caching so frontend always uses latest JS/HTML behavior.
+        self.send_header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
+        self.send_header('Pragma', 'no-cache')
+        self.send_header('Expires', '0')
+        super().end_headers()
+
+    def _send_json(self, status_code: int, payload: dict):
+        self.send_response(status_code)
+        self.send_header('Content-type', 'application/json')
+        self.send_header('Access-Control-Allow-Origin', '*')
+        self.end_headers()
+        self.wfile.write(json.dumps(payload).encode('utf-8'))
+
+    @staticmethod
+    def _print_data_path_hint(ai_result: dict) -> None:
+        """Terminal-only hint: intent planner vs LangChain pandas agent."""
+        if not isinstance(ai_result, dict) or "error" in ai_result:
+            return
+        src = ai_result.get("source") or ""
+        cfg = ai_result.get("intent_planner_config_enabled")
+        if src == "planner_executor":
+            pi = ai_result.get("plan_intent") or "-"
+            _print_aiquery_diag(f"[AIQuery] data_path=intent_planner  plan_intent={pi}")
+            return
+        if src == "langchain_agent":
+            extra = (
+                "planner_on_but_fell_back_to_agent"
+                if cfg
+                else "intent_planner_off"
+            )
+            _print_aiquery_diag(f"[AIQuery] data_path=agent_ai  note={extra}")
+            return
+        if src == "deterministic_churn":
+            _print_aiquery_diag("[AIQuery] data_path=deterministic_churn  (sales_main MoM/YoY)")
+            return
+        if src == "language_policy":
+            _print_aiquery_diag(
+                f"[AIQuery] data_path=none  reason=language_only  intent_planner_config={cfg}"
+            )
+            return
+        if src in ("rate_limited", "no_data"):
+            _print_aiquery_diag(
+                f"[AIQuery] data_path=agent_ai  outcome={src}  intent_planner_config={cfg}"
+            )
+            return
+        _print_aiquery_diag(f"[AIQuery] source={src}")
+
+    @staticmethod
+    def is_english_query(text):
+        if not text or not text.strip():
+            return False
+        has_latin = bool(re.search(r"[A-Za-z]", text))
+        has_non_ascii = any(ord(ch) > 127 for ch in text)
+        return has_latin and not has_non_ascii
+
     def do_OPTIONS(self):
         self.send_response(200)
         self.send_header('Access-Control-Allow-Origin', '*')
@@ -50,6 +133,25 @@ class GeminiChatHandler(http.server.SimpleHTTPRequestHandler):
         self.end_headers()
     def do_GET(self):
         """Handle GET requests"""
+        if self.path == '/health':
+            payload = {
+                "status": "ok",
+                "service": "ai_training_system",
+                "engine": "langchain_groq_hybrid",
+                "interfaces_loaded": len(ai_interfaces),
+            }
+            return self._send_json(200, payload)
+
+        if self.path == '/metrics':
+            companyfn = None
+            if ai_interfaces:
+                companyfn = next(iter(ai_interfaces.keys()))
+            ai_interface = get_ai_interface(companyfn)
+            if not ai_interface:
+                return self._send_json(503, {"status": "degraded", "error": "AI interface unavailable"})
+            metrics = ai_interface.get_runtime_metrics()
+            return self._send_json(200, metrics)
+
         if self.path == '/' or self.path == '/index.html':
             self.path = '/gemini_chat.html'
         return http.server.SimpleHTTPRequestHandler.do_GET(self)
@@ -63,231 +165,93 @@ class GeminiChatHandler(http.server.SimpleHTTPRequestHandler):
             try:
                 data = json.loads(post_data.decode('utf-8'))
                 user_message = data.get('message', '')
+                request_id = data.get('request_id')
                 # Extract companyfn from request context for data isolation
                 companyfn = data.get('companyfn', None)
-                
-                # Get response from OpenRouter
-                response = self.get_openrouter_response(user_message, companyfn)
+                session_id = data.get('session_id', None) or data.get('conversation_id', None)
+                if not session_id:
+                    session_id = self.headers.get('X-Session-Id', None)
+                if not session_id:
+                    session_id = self.client_address[0]
+
+                if not self.is_english_query(user_message):
+                    response_data = {
+                        "success": True,
+                        "response": "Please use English for your query. Non-English questions are not supported.",
+                        "meta": {"source": "language_policy"},
+                        "request_id": request_id,
+                    }
+                else:
+                    response_data = self.get_agent_response(user_message, companyfn, session_id, request_id)
                 
                 # Send response
-                self.send_response(200)
-                self.send_header('Content-type', 'application/json')
-                self.send_header('Access-Control-Allow-Origin', '*')
-                self.end_headers()
-                
-                response_data = json.dumps({
-                    'success': True,
-                    'response': response
-                })
-                self.wfile.write(response_data.encode('utf-8'))
+                self._send_json(200, response_data)
                 
             except Exception as e:
-                self.send_response(500)
-                self.send_header('Content-type', 'application/json')
-                self.end_headers()
-                
-                error_response = json.dumps({
+                error_response = {
                     'success': False,
                     'error': str(e)
-                })
-                self.wfile.write(error_response.encode('utf-8'))
+                }
+                self._send_json(500, error_response)
         else:
             self.send_response(404)
             self.end_headers()
     
-    def get_openrouter_response(self, user_message, companyfn=None):
-        """Get response from OpenRouter API with AI Query Interface integration"""
+    def get_agent_response(self, user_message, companyfn=None, session_id=None, request_id=None):
+        """Get response from internal hybrid query pipeline."""
         try:
             # Get company-specific AI interface for data isolation
             ai_interface = get_ai_interface(companyfn)
-            
-            # Check if this is a data query
-            data_keywords = [
-                'customer', 'product', 'sales', 'trend', 'forecast', 'churn', 'analysis', 'top', 'bestseller', 'revenue', 'order',
-                'month', 'year', 'date', 'daily', 'monthly', 'yearly', 'period',
-                'january', 'february', 'march', 'april', 'may', 'june',
-                'july', 'august', 'september', 'october', 'november', 'december'                           
-            ]
-            
-            is_data_query = any(keyword in user_message.lower() for keyword in data_keywords)
-            
-            # If it's a data query and AI Interface is available
-            if is_data_query and ai_interface:
+
+            if ai_interface:
                 try:
-                    # Use AI Query Interface to get insights (filtered by companyfn)
-                    ai_result = ai_interface.process_query(user_message)
+                    context = {"companyfn": companyfn, "session_id": session_id}
+                    ai_result = ai_interface.process_query(user_message, context=context)
+                    _print_aiquery_diag(ai_interface.terminal_parquet_and_df_map_line())
+                    GeminiChatHandler._print_data_path_hint(ai_result)
                     ai_response = ai_interface.format_response(ai_result)
-                    
-                    # Create prompt for OpenRouter with context from AI Interface
-                    system_prompt = f"""You are an internal AI Assistant for the company's ERP/BI system.
+                    return {
+                        "success": True,
+                        "response": ai_response,
+                        "request_id": request_id,
+                        "meta": {
+                            "source": ai_result.get("source"),
+                            "query_type": ai_result.get("query_type"),
+                            "reason_code": ai_result.get("reason_code"),
+                            "intent_router": ai_result.get("intent_router"),
+                            "active_datasets": ai_result.get("active_datasets"),
+                        },
+                    }
 
-                    Your role:
-                    - Analyze business data
-                    - Support decision making
-                    - Explain data analysis results
-                    - Answer questions related to sales, customers, products, employees, and business performance.
-                    - If the user asks for a 'summary', prioritize mentioning Total Revenue, Total Transactions, and Growth Rate in a structured list.
-
-                    - TIME FILTERING LOGIC:
-                    - If the user asks for a specific month (e.g., "01/2010"), filter the DATA SOURCE to only include January 2010.
-                    - If the user asks for a specific date (e.g., "28/12/2010"), focus strictly on that day's data.
-                    - If the timeframe is not found in the DATA SOURCE, state that no records exist for that period.
-
-                    DATA ACCESS PERMISSIONS
-
-                    You are operating in the company's internal environment and are authorized to use data from the internal ERP and database systems.
-
-                    Available data may include:
-                    - Order data
-                    - Revenue
-                    - Customer data
-                    - Product data
-                    - Employee data
-                    - Analysis reports
-                    - Machine learning results
-
-                    You do NOT need to refuse due to "no data access permission".
-                    Consider the data provided in the system as valid internal data for analysis.
-
-                    DATA SOURCE FOR ANALYSIS
-
-                    Analysis results from the backend system are provided below:
-
-                    {ai_response}
-
-                    You must:
-                    1. Identify if there is a specific Date or Month in the user's question.
-                    2. Analyze the data from the results provided below *strictly* for that timeframe.
-                    3. Summarize important insights and answer the user's question.
-
-                    RESPONSE RULES
-
-                    - Always base responses on provided data
-                    - Do not fabricate data if it doesn't exist
-                    - If data is insufficient, request additional information
-                    - Explain clearly and understandably
-                    - Prefer bullet points or tables when needed
-                    - You may use emojis for friendliness but don't overuse them
-                    - STRICT DATA SOURCE ADHERENCE: You are ONLY allowed to use metrics present in the {ai_response}. 
-                    - ANTI-HALLUCINATION: If the data does not contain "Customer names", "Product names", or "Employee names", DO NOT mention or invent them. 
-                    - NULL DATA HANDLING: If a metric (e.g., num_transactions) is 0 or null in the data source, report it as 0. Do not assume there is hidden data.
-                    - REVENUE vs TRANSACTIONS: Use the 'amt_local' for revenue and 'num_transactions' for the count. If 'num_transactions' is available, use it to calculate 'Average Revenue per Transaction' as an extra insight.
-                    - NO HISTORICAL ASSUMPTION: Do not compare with previous months unless the specific growth_rate or previous_data is provided in the {ai_response}.
-
-                    LANGUAGE
-
-                    - Always respond in English
-                    - Clear, professional, and easy-to-understand tone"""
-                    
                 except Exception as e:
-                    # If AI Interface fails, use default prompt
-                    system_prompt = """You are an AI Assistant specializing in sales data analysis and machine learning.
-                    You can:
-                    - Answer questions about sales data
-                    - Explain ML/AI concepts like churn prediction, sales forecast
-                    - Support Python coding and debugging
-                    - Analyze business trends
-                    - Provide suggestions to improve sales
-
-                    Respond in English, be friendly and easy to understand. Use emojis to create a friendly atmosphere."""
-            else:
-                # Default prompt for other questions
-                system_prompt = """You are an internal AI Assistant for the company's ERP/BI system.
-
-                Your role:
-                - Analyze business data
-                - Support decision making
-                - Explain data analysis results
-                - Answer questions related to sales, customers, products, employees, and business performance.
-
-                DATA ACCESS PERMISSIONS
-
-                You are operating in the company's internal environment and are authorized to use data from the internal ERP and database systems.
-
-                Available data may include:
-                - Order data
-                - Revenue
-                - Customer data
-                - Product data
-                - Employee data
-                - Analysis reports
-                - Machine learning results
-
-                You do NOT need to refuse due to "no data access permission".
-                Consider the data provided in the system as valid internal data for analysis.
-
-                DATA SOURCE FOR ANALYSIS
-
-                Analysis results from the backend system are provided below:
-
-
-                You must:
-                1. Analyze the data in these results
-                2. Summarize important insights
-                3. Answer the user's question based on the data
-
-                RESPONSE RULES
-
-                - Always base responses on provided data
-                - Do not fabricate data if it doesn't exist
-                - If data is insufficient, request additional information
-                - Explain clearly and understandably
-                - Prefer bullet points or tables when needed
-                - You may use emojis for friendliness but don't overuse them
-
-                LANGUAGE
-
-                - Always respond in English
-                - Clear, professional, and easy-to-understand tone"""
-            
-            # Create client with OpenRouter API
-            client = OpenAI(
-                base_url="https://openrouter.ai/api/v1",
-                api_key=OPENROUTER_API_KEY,
-                default_headers={
-                    "HTTP-Referer": "http://localhost:9001", # Bắt buộc để xác thực nguồn
-                    "X-Title": "ERP AI Chat Assistant",      # Tên ứng dụng hiển thị trên OpenRouter
-                }
-            )
-            
-            # Create messages with context
-            messages = [
-                {
-                    "role": "system",
-                    "content": system_prompt
-                },
-                {
-                    "role": "user",
-                    "content": user_message
-                }
-            ]
-            
-            # Generate response using OpenRouter API (free model)
-            response = client.chat.completions.create(
-                model="openrouter/free",
-                messages=messages,
-                max_tokens=1000,
-                temperature=0.7
-            )
-            
-            return response.choices[0].message.content
+                    return {
+                        "success": False,
+                        "response": f"Sorry, I encountered an internal query error: {str(e)}",
+                        "request_id": request_id,
+                        "meta": {"source": "internal_error"},
+                    }
+            return {
+                "success": False,
+                "response": "AI query interface is unavailable. Please check server logs and LangChain/Groq configuration.",
+                "request_id": request_id,
+                "meta": {"source": "interface_unavailable"},
+            }
             
         except Exception as e:
-            return f"Sorry, I encountered an error while processing your question: {str(e)}"
+            return {
+                "success": False,
+                "response": f"Sorry, I encountered an error while processing your question: {str(e)}",
+                "request_id": request_id,
+                "meta": {"source": "server_error"},
+            }
 
 def main():
     """Start the server"""
-    print(f"Starting AI Chat Server (OpenRouter)...")
+    _enable_windows_console_ansi()
+    print("Starting AI Chat Server (LangChain + Groq)...")
     print(f"Open your browser and go to: http://localhost:{PORT}")
     print(f"Press Ctrl+C to stop the server")
     print()
-    
-    # Check API key
-    if OPENROUTER_API_KEY == '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':
-        print("WARNING: Please set your OPENROUTER_API_KEY!")
-        print("   Get free API key at: https://openrouter.ai/keys")
-        print("   Then set it as environment variable or edit gemini_server.py")
-        print()
     
     with socketserver.TCPServer(("", PORT), GeminiChatHandler) as httpd:
         try:

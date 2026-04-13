@@ -1,0 +1,31 @@
+{
+  "planner_min_confidence": 0.55,
+  "agent_timeout_seconds": 120,
+  "executor_max_runtime_retries": 3,
+  "enable_llm_response_auditor": false,
+  "enable_multi_step_synthesis": true,
+  "default_year_when_unspecified": true,
+  "enable_intent_planner": true,
+  "allowed_intents": [
+    "DATA_QUERY",
+    "TOP_PRODUCTS",
+    "LATEST_RECORDS_TOP_PRODUCT",
+    "TOP_CUSTOMERS_TOP_PRODUCT",
+    "TOP_CUSTOMERS",
+    "GET_REVENUE",
+    "REVENUE_GROWTH_MOM",
+    "TOP_BRANDS",
+    "TOP_CATEGORIES",
+    "COMPARE_CHURN",
+    "UNKNOWN"
+  ],
+  "known_columns": [
+    "stkcode_desc",
+    "amount_local",
+    "party_desc",
+    "brand_desc",
+    "stkcate_desc",
+    "month",
+    "year"
+  ]
+}
